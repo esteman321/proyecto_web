@@ -9,10 +9,15 @@ Importa camisetas desde una carpeta organizada como:
       La Liga/
         Real Madrid/
           ...
+      Liga Holandesa/
+        producto_032.jpeg        <- foto directo en la carpeta de la liga (sin equipo)
 
 Cada foto crea un producto por cada versión indicada (por defecto Fan y Player),
 todos compartiendo el mismo archivo de imagen. Si el nombre del archivo trae
 home/away/third/retro o una temporada (2024-25), también las detecta.
+
+Se puede apuntar a .\\media o a .\\media\\Fan - Player: las carpetas contenedoras
+(Fan - Player, Retro, media, ...) se ignoran automáticamente.
 
 Uso:
     python manage.py importar_imagenes "C:\\ruta\\Fan - Player" --dry-run
@@ -40,6 +45,17 @@ CLAVES = [  # el orden importa: lo más específico primero
 ]
 ESPALDA = {"back", "atras", "detras", "trasera", "espalda", "reverso", "rear"}
 
+# Carpetas que solo agrupan (no son liga ni equipo); se ignoran al leer la ruta
+CONTENEDORES = {"fan player", "fan", "player", "retro", "media", "camisetas", "fan y player"}
+
+# Si una carpeta suelta contiene alguna de estas palabras, se trata como LIGA
+PALABRAS_LIGA = {
+    "liga", "league", "serie", "bundesliga", "ligue", "premier", "eredivisie",
+    "brasileirao", "primeira", "lig", "championship", "mls", "seleccion", "selecciones",
+}
+
+SIN_EQUIPO = "Varios"  # equipo genérico para fotos que están directo en la carpeta de la liga
+
 
 def normalizar(texto):
     """Minúsculas, sin tildes ni símbolos: 'Bayern_München' -> 'bayern munchen'."""
@@ -49,6 +65,16 @@ def normalizar(texto):
 
 def es_espalda(ruta):
     return bool(set(normalizar(ruta.stem).split()) & ESPALDA)
+
+
+def es_liga(nombre):
+    return bool(set(normalizar(nombre).split()) & PALABRAS_LIGA)
+
+
+def carpetas_de(ruta, raiz):
+    """Carpetas entre la raíz y el archivo, sin las 'contenedoras'."""
+    carpetas = [c.replace("_", " ").strip() for c in ruta.relative_to(raiz).parts[:-1]]
+    return [c for c in carpetas if normalizar(c) not in CONTENEDORES]
 
 
 def detectar_equipacion(stem):
@@ -110,13 +136,19 @@ class Command(BaseCommand):
                     stats["extras"] += 1
                     continue
 
-                partes = ruta.relative_to(raiz).parts
-                if len(partes) == 3:
-                    liga, nombre_equipo = partes[0].replace("_", " ").strip(), partes[1].replace("_", " ").strip()
-                elif len(partes) == 2:
-                    liga, nombre_equipo = "", partes[0].replace("_", " ").strip()
+                carpetas = carpetas_de(ruta, raiz)
+                if len(carpetas) >= 2:
+                    # .../Liga/Equipo/archivo  (si hay más niveles, toma los dos últimos)
+                    liga, nombre_equipo = carpetas[-2], carpetas[-1]
+                elif len(carpetas) == 1:
+                    if es_liga(carpetas[0]):
+                        # .../Liga Holandesa/archivo  -> foto sin equipo
+                        liga, nombre_equipo = carpetas[0], f"{SIN_EQUIPO} · {carpetas[0]}"
+                    else:
+                        # .../Equipo/archivo  -> equipo sin liga
+                        liga, nombre_equipo = "", carpetas[0]
                 else:
-                    self.stdout.write(self.style.WARNING(f"  omitida (ruta inesperada): {ruta}"))
+                    self.stdout.write(self.style.WARNING(f"  omitida (sin carpeta de liga/equipo): {ruta}"))
                     stats["omitidas"] += 1
                     continue
 
