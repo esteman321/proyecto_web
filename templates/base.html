@@ -6,20 +6,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Tribuna · Camisetas de fútbol{% endblock %}</title>
   <meta name="description" content="Camisetas de fútbol de selecciones y clubes, en tu talla.">
-  <link rel="stylesheet" href="{% static './css/home.css' %}">
+  <link rel="stylesheet" href="{% static 'css/home.css' %}">
 </head>
 <body>
   <header class="nav">
     <nav class="nav__inner" aria-label="Principal">
       <a class="nav__brand" href="{% url 'home' %}">Tribuna</a>
       <ul class="nav__links">
-        <li><a href="#selecciones">Selecciones</a></li>
-        <li><a href="#clubes">Clubes</a></li>
-        <li><a href="#novedades">Novedades</a></li>
-        <li><a href="#ofertas">Ofertas</a></li>
+        <li><a href="{% url 'selecciones' %}">Selecciones</a></li>
+        <li><a href="{% url 'ligas' seccion='clubes' %}">Clubes</a></li>
+        <li><a href="{% url 'ligas' seccion='retro' %}">Retro</a></li>
+        <li><a href="{% url 'catalogo' %}">Todo</a></li>
       </ul>
       <div class="nav__actions">
-        <a href="#" aria-label="Buscar" class="icon-btn">
+        <a href="{% url 'catalogo' %}" aria-label="Buscar" class="icon-btn">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         </a>
         <a href="#" aria-label="Carrito" class="icon-btn">

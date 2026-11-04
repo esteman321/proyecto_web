@@ -8,7 +8,7 @@
       <p class="lead">Selecciones y clubes de todo el mundo. Elige, compara y recibe en casa.</p>
       <div class="hero__cta">
         <a href="#novedades" class="btn btn--primary">Ver novedades</a>
-        <a href="#selecciones" class="btn btn--ghost">Explorar selecciones</a>
+        <a href="{% url 'selecciones' %}" class="btn btn--ghost">Explorar selecciones</a>
       </div>
     </div>
     <div class="hero__stage" data-tilt>
@@ -17,20 +17,20 @@
   </div>
 </section>
 
-<section class="section wrap" id="selecciones">
+<section class="section wrap" id="categorias">
   <h2>Compra por categoría</h2>
   <div class="tiles">
-    <a href="#" class="tile tile--wide">
+    <a href="{% url 'selecciones' %}" class="tile tile--wide">
       <h3>Selecciones</h3>
       <p>Eliminatorias, Copa América y Mundial.</p>
       <div class="tile__art">{% include "tienda/camiseta.html" with c1="#FCD116" c2="#CE1126" %}</div>
     </a>
-    <a href="#clubes" class="tile">
+    <a href="{% url 'ligas' seccion='clubes' %}" class="tile">
       <h3>Clubes</h3>
       <p>Local, visitante y tercera.</p>
       <div class="tile__art">{% include "tienda/camiseta.html" with c1="#0B6E3A" c2="#FFFFFF" %}</div>
     </a>
-    <a href="#" class="tile">
+    <a href="{% url 'ligas' seccion='retro' %}" class="tile">
       <h3>Retro</h3>
       <p>Diseños que hicieron historia.</p>
       <div class="tile__art">{% include "tienda/camiseta.html" with c1="#1B2A4A" c2="#E8C547" %}</div>
@@ -41,27 +41,22 @@
 <section class="section" id="novedades">
   <div class="wrap section__head">
     <h2>Recién llegadas</h2>
-    <a href="#" class="link">Ver todo</a>
+    <a href="{% url 'catalogo' %}" class="link">Ver todo</a>
   </div>
   <ul class="rail" tabindex="0" aria-label="Camisetas recién llegadas">
     {% for p in productos %}
-    <li class="card">
-      <a href="#" class="card__link">
-        <div class="card__art">{% include "tienda/camiseta.html" with c1=p.c1 c2=p.c2 %}</div>
-        <h3>{{ p.nombre }}</h3>
-        <p class="card__meta">{{ p.temporada }}</p>
-        <p class="card__price">${{ p.precio }}</p>
-      </a>
-    </li>
+      {% include "tienda/card.html" %}
+    {% empty %}
+    <li class="card"><p class="card__meta">Aún no hay camisetas. Ejecuta <code>python manage.py cargar_catalogo</code>.</p></li>
     {% endfor %}
   </ul>
 </section>
 
-<section class="section wrap" id="ofertas">
+<section class="section wrap">
   <div class="promo">
     <h2>Elige tu talla sin dudas</h2>
     <p>Guía de tallas en cada camiseta y cambios sin costo en los primeros 15 días.</p>
-    <a href="#" class="btn btn--light">Ver guía de tallas</a>
+    <a href="{% url 'catalogo' %}" class="btn btn--light">Ver catálogo</a>
   </div>
 </section>
 

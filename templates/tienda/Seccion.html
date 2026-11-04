@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }} · Tribuna{% endblock %}
+{% block content %}
+
+<nav class="wrap crumbs" aria-label="Ruta">
+  {% for nombre, url in migas %}
+    {% if not forloop.last and url %}<a href="{{ url }}">{{ nombre }}</a> <span>/</span>
+    {% else %}<span aria-current="page">{{ nombre }}</span>{% endif %}
+  {% endfor %}
+</nav>
+
+<section class="wrap picker-head">
+  <p class="eyebrow">{{ eyebrow }}</p>
+  <h1 class="page-title">{{ titulo }}</h1>
+  <p class="lead">{{ subtitulo }}</p>
+</section>
+
+<section class="wrap picker-panel">
+  {% if ligas %}
+  <ul class="picker picker--ligas" aria-label="Ligas">
+    {% for item in ligas %}{% include "tienda/escudo.html" with size="lg" dim=liga_sel %}{% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if ligas and equipos %}<hr class="picker__sep">{% endif %}
+
+  {% if equipos %}
+  <ul class="picker picker--equipos" aria-label="Equipos">
+    {% for item in equipos %}{% include "tienda/escudo.html" with size="sm" dim=equipo_sel %}{% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if not ligas and not equipos %}
+  <div class="empty"><h2>Aún no hay camisetas aquí</h2>
+    <p>Cuando cargues productos de esta sección aparecerán sus ligas y equipos.</p></div>
+  {% endif %}
+</section>
+
+{% if selector %}
+<section class="wrap selector-bar">
+  <p class="picker__label">Equipación</p>
+  <div class="seg" role="group" aria-label="Equipación">
+    {% for s in selector %}
+      {% if s.count %}
+      <a class="seg__item{% if s.activo %} is-active{% endif %}" href="{{ s.url }}"{% if s.activo %} aria-current="true"{% endif %}>{{ s.nombre }} <small>{{ s.count }}</small></a>
+      {% else %}
+      <span class="seg__item is-disabled">{{ s.nombre }} <small>0</small></span>
+      {% endif %}
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if pagina %}
+<section class="wrap section section--tight">
+  {% if pagina.object_list %}
+  <ul class="grid">
+    {% for p in pagina %}{% include "tienda/card.html" %}{% endfor %}
+  </ul>
+  {% if pagina.paginator.num_pages > 1 %}
+  <nav class="pager" aria-label="Paginación">
+    {% if pagina.has_previous %}<a class="btn btn--soft" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ pagina.previous_page_number }}">Anterior</a>{% endif %}
+    <span class="pager__info">Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span>
+    {% if pagina.has_next %}<a class="btn btn--soft" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ pagina.next_page_number }}">Siguiente</a>{% endif %}
+  </nav>
+  {% endif %}
+  {% else %}
+  <div class="empty"><h2>No hay camisetas en esta selección</h2>
+    <a class="btn btn--primary" href="{% url 'catalogo' %}">Ver todo el catálogo</a></div>
+  {% endif %}
+</section>
+{% else %}
+<section class="wrap section section--tight picker-foot">
+  <a class="link" href="{% url 'catalogo' %}">Prefiero ver todas las camisetas</a>
+</section>
+{% endif %}
+
+{% endblock %}

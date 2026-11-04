@@ -1,0 +1,12 @@
+{# Un escudo redondo con su nombre. Variables: item, size (lg|sm), dim (atenuar si hay otra selección) #}
+<li>
+  <a class="badge badge--{{ size }}{% if item.activo %} is-active{% elif dim %} is-dim{% endif %}"
+     href="{{ item.url }}"{% if item.activo %} aria-current="page"{% endif %}>
+    {% if item.escudo %}
+    <span class="badge__disc"><img src="{{ item.escudo }}" alt="" loading="lazy"></span>
+    {% else %}
+    <span class="badge__disc badge__disc--mono"><span class="badge__ini">{{ item.iniciales }}</span></span>
+    {% endif %}
+    <span class="badge__name">{{ item.nombre }}</span>
+  </a>
+</li>

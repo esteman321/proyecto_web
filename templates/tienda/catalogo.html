@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Camisetas · Tribuna{% endblock %}
+{% block content %}
+
+<section class="wrap page-head">
+  <h1 class="page-title">Camisetas</h1>
+  <p class="lead">{{ pagina.paginator.count }} resultado{{ pagina.paginator.count|pluralize }}</p>
+</section>
+
+<form class="wrap filters" method="get" action="{% url 'catalogo' %}">
+  <label class="field field--grow">
+    <span>Buscar</span>
+    <input type="search" name="q" value="{{ q }}" placeholder="Equipo o camiseta">
+  </label>
+  <label class="field">
+    <span>Tipo</span>
+    <select name="tipo">
+      <option value="">Todos</option>
+      {% for valor, nombre in tipos %}
+      <option value="{{ valor }}" {% if tipo == valor %}selected{% endif %}>{{ nombre }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="field">
+    <span>Versión</span>
+    <select name="version">
+      <option value="">Todas</option>
+      {% for valor, nombre in versiones %}
+      <option value="{{ valor }}" {% if version == valor %}selected{% endif %}>{{ nombre }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  {% if ligas %}
+  <label class="field">
+    <span>Liga</span>
+    <select name="liga">
+      <option value="">Todas</option>
+      {% for l in ligas %}
+      <option value="{{ l }}" {% if liga == l %}selected{% endif %}>{{ l }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  {% endif %}
+  <label class="field">
+    <span>Equipación</span>
+    <select name="equipacion">
+      <option value="">Todas</option>
+      {% for valor, nombre in equipaciones %}
+      <option value="{{ valor }}" {% if equipacion == valor %}selected{% endif %}>{{ nombre }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="field">
+    <span>Temporada</span>
+    <select name="temporada">
+      <option value="">Todas</option>
+      {% for t in temporadas %}
+      <option value="{{ t }}" {% if temporada == t %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="field">
+    <span>Ordenar</span>
+    <select name="orden">
+      <option value="nuevo" {% if orden == "nuevo" %}selected{% endif %}>Más nuevas</option>
+      <option value="precio_asc" {% if orden == "precio_asc" %}selected{% endif %}>Precio: menor a mayor</option>
+      <option value="precio_desc" {% if orden == "precio_desc" %}selected{% endif %}>Precio: mayor a menor</option>
+      <option value="nombre" {% if orden == "nombre" %}selected{% endif %}>Nombre A–Z</option>
+    </select>
+  </label>
+  <button class="btn btn--primary btn--sm" type="submit">Aplicar</button>
+  <a class="link filters__clear" href="{% url 'catalogo' %}">Limpiar</a>
+</form>
+
+<section class="wrap section section--tight">
+  {% if pagina.object_list %}
+  <ul class="grid">
+    {% for p in pagina %}
+      {% include "tienda/card.html" %}
+    {% endfor %}
+  </ul>
+
+  {% if pagina.paginator.num_pages > 1 %}
+  <nav class="pager" aria-label="Paginación">
+    {% if pagina.has_previous %}
+      <a class="btn btn--soft" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ pagina.previous_page_number }}">Anterior</a>
+    {% endif %}
+    <span class="pager__info">Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span>
+    {% if pagina.has_next %}
+      <a class="btn btn--soft" href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ pagina.next_page_number }}">Siguiente</a>
+    {% endif %}
+  </nav>
+  {% endif %}
+  {% else %}
+  <div class="empty">
+    <h2>No encontramos camisetas</h2>
+    <p>Prueba con otros filtros o una búsqueda distinta.</p>
+    <a class="btn btn--primary" href="{% url 'catalogo' %}">Ver todo el catálogo</a>
+  </div>
+  {% endif %}
+</section>
+
+{% endblock %}
