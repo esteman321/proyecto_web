@@ -43,7 +43,7 @@ class Producto(models.Model):
     precio = models.DecimalField(max_digits=10, decimal_places=0)
     color_principal = models.CharField(max_length=7, default="#FFFFFF")
     color_secundario = models.CharField(max_length=7, default="#000000")
-    #imagen = models.ImageField(upload_to="camisetas/", blank=True)
+    imagen = models.ImageField(upload_to="camisetas/", blank=True)
     activo = models.BooleanField(default=True)
     creado = models.DateTimeField(auto_now_add=True)
 
