@@ -10,7 +10,8 @@ o "media" se ignoran, así que puedes apuntar a .\\media o a una subcarpeta):
 
     Fan - Player/Brasileirao/Atletico Mineiro/producto_008.jpg   -> club
     Fan - Player/Liga Holandesa/producto_032.jpeg                 -> club "Varios · Liga Holandesa"
-    Fan - Player/Selecciones/Argentina/producto_001.jpg           -> selección
+    Selecciones/producto_010.jpg                                  -> selección "Varios · Selecciones"
+    Selecciones/Argentina/producto_001.jpg                        -> selección Argentina
     Retro/Serie A/AC Milan/producto_003.jpg                       -> club, retro
     Retro/Selecciones/Brasil/producto_004.jpg                     -> selección, retro
 
@@ -19,6 +20,7 @@ todos compartiendo el mismo archivo de imagen.
 
 Uso:
     python manage.py importar_imagenes ".\\media\\Fan - Player" --dry-run
+    python manage.py importar_imagenes ".\\media\\Selecciones" --dry-run
     python manage.py importar_imagenes ".\\media\\Retro" --dry-run
     python manage.py importar_imagenes ".\\media\\Fan - Player" --temporada 26/27
     python manage.py importar_imagenes ".\\media\\Mundial" --selecciones   # fuerza selecciones
@@ -38,7 +40,7 @@ from tienda.models import Equipo, Producto
 CAMPO_IMAGEN = "imagen"        # nombre real del ImageField en tu modelo Producto
 TIPO_CLUB = "club"             # valor de Equipo.tipo para clubes
 TIPO_SELECCION = "seleccion"   # valor de Equipo.tipo para selecciones (revisa tus choices)
-SIN_EQUIPO = "Varios"          # equipo genérico para fotos sueltas dentro de una liga
+SIN_EQUIPO = "Varios"          # equipo genérico para fotos sueltas (en una liga o en Selecciones)
 # -----------------------------------------------------------------------------
 
 EXTENSIONES = {".jpg", ".jpeg", ".png", ".webp"}
@@ -184,30 +186,33 @@ class Command(BaseCommand):
                 # Las carpetas tipo "Selecciones" son categoría, no liga ni equipo
                 carpetas_utiles = [c for c in carpetas if not es_carpeta_seleccion(c)]
                 en_carpeta_selecciones = len(carpetas_utiles) != len(carpetas)
+                modo_selecciones = (
+                    o["selecciones"]
+                    or en_carpeta_selecciones
+                    or any(es_carpeta_seleccion(n) for n in nombres_de_ruta(ruta, raiz))
+                )
 
                 if len(carpetas_utiles) >= 2:
                     liga, nombre_equipo = carpetas_utiles[-2], carpetas_utiles[-1]
                 elif len(carpetas_utiles) == 1:
                     unica = carpetas_utiles[0]
-                    if (en_carpeta_selecciones or o["selecciones"]
-                            or normalizar(unica) in PAISES):
+                    if modo_selecciones or normalizar(unica) in PAISES:
                         liga, nombre_equipo = "", unica          # .../Selecciones/Argentina/foto
                     elif es_liga(unica):
                         liga, nombre_equipo = unica, f"{SIN_EQUIPO} · {unica}"   # foto suelta en una liga
                     else:
                         liga, nombre_equipo = "", unica          # .../Equipo/foto
                 else:
-                    self.stdout.write(self.style.WARNING(f"  omitida (sin carpeta de liga/equipo): {ruta}"))
-                    stats["omitidas"] += 1
-                    continue
+                    if modo_selecciones:
+                        # .../Selecciones/producto_010.jpg -> foto suelta de selecciones
+                        liga, nombre_equipo = "", f"{SIN_EQUIPO} · Selecciones"
+                    else:
+                        self.stdout.write(self.style.WARNING(f"  omitida (sin carpeta de liga/equipo): {ruta}"))
+                        stats["omitidas"] += 1
+                        continue
 
                 # --- ¿selección o club? ---------------------------------------------
-                es_seleccion = (
-                    o["selecciones"]
-                    or en_carpeta_selecciones
-                    or any(es_carpeta_seleccion(n) for n in nombres_de_ruta(ruta, raiz))
-                    or normalizar(nombre_equipo) in PAISES
-                )
+                es_seleccion = modo_selecciones or normalizar(nombre_equipo) in PAISES
                 tipo = TIPO_SELECCION if es_seleccion else TIPO_CLUB
                 if es_seleccion:
                     liga = ""   # las selecciones no pertenecen a una liga de clubes
