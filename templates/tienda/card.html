@@ -2,9 +2,9 @@
 <li class="card">
   <a href="{% url 'detalle' p.pk %}" class="card__link">
     {% if p.imagen %}
-    <div class="card__art card__art--foto"><img src="{{ p.imagen.url }}" alt="Camiseta {{ p.nombre }}" loading="lazy"></div>
+    <div class="card__art card__art--foto"><img src="{{ p.imagen.url }}" alt="Camiseta {{ p.nombre }}" loading="lazy" decoding="async"></div>
     {% else %}
-    <div class="card__art">{% include "tienda/_camiseta.html" with c1=p.c1 c2=p.c2 %}</div>
+    <div class="card__art">{% include "tienda/camiseta.html" with c1=p.c1 c2=p.c2 %}</div>
     {% endif %}
     <h3>{{ p.nombre }}</h3>
     <p class="card__meta"><span class="tag tag--{{ p.version }}">{{ p.get_version_display }}</span>{% if p.equipacion_definida %} · {{ p.get_equipacion_display }}{% endif %}{% if p.retro %} · Retro{% endif %} · {{ p.temporada }}</p>

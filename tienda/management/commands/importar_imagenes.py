@@ -109,8 +109,8 @@ class Command(BaseCommand):
         parser.add_argument("--temporada", default="26/27", help="Temporada si el archivo no la indica.")
         parser.add_argument("--retro", action="store_true", help="Marca todo lo importado como retro.")
         parser.add_argument("--versiones", default="fan,player", help="Versiones a crear por foto.")
-        parser.add_argument("--precio-fan", type=int, default=199000)
-        parser.add_argument("--precio-player", type=int, default=279000)
+        parser.add_argument("--precio-fan", type=int, default=70.000)
+        parser.add_argument("--precio-player", type=int, default=90.000)
 
     def handle(self, *args, **o):
         raiz = Path(o["carpeta"])
