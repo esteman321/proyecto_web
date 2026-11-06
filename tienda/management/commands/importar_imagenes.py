@@ -145,12 +145,12 @@ class Command(BaseCommand):
         parser.add_argument("--dry-run", action="store_true", help="Muestra qué haría sin guardar nada.")
         parser.add_argument("--reemplazar", action="store_true", help="Reemplaza imágenes ya asignadas.")
         parser.add_argument("--temporada", default="26/27", help="Temporada si el archivo no la indica.")
-        parser.add_argument("--retro", action="store_true", help="Fuerza que todo lo importado sea retro.")
         parser.add_argument("--selecciones", action="store_true", help="Fuerza que todo sean selecciones.")
         parser.add_argument("--versiones", default=None,
                             help="Versiones por foto (fan,player). Por defecto: fan+player; en retro solo fan.")
-        parser.add_argument("--precio-fan", type=int, default=199000)
-        parser.add_argument("--precio-player", type=int, default=279000)
+        parser.add_argument("--precio-fan", type=int, default=75000)
+        parser.add_argument("--precio-player", type=int, default=90000)
+        parser.add_argument("--retro", action="store_true", help="Fuerza que todo lo importado sea retro.")
 
     def handle(self, *args, **o):
         raiz = Path(o["carpeta"]).resolve()
