@@ -39,7 +39,7 @@ class Producto(models.Model):
     codigo = models.CharField(max_length=60, blank=True, db_index=True)  # ej. "producto_018"
     equipacion = models.CharField(max_length=12, choices=EQUIPACION, default="local")
     retro = models.BooleanField(default=False)
-    temporada = models.CharField(max_length=10)
+    temporada = models.CharField(max_length=10, blank=True)   # vacía si no se conoce (retro)
     precio = models.DecimalField(max_digits=10, decimal_places=0)
     color_principal = models.CharField(max_length=7, default="#FFFFFF")
     color_secundario = models.CharField(max_length=7, default="#000000")
@@ -58,6 +58,18 @@ class Producto(models.Model):
     @property
     def equipacion_definida(self):
         return self.equipacion != "sin_definir"
+
+    @property
+    def meta(self):
+        """'Retro · Local · 1998' (solo las partes que existen)."""
+        partes = []
+        if self.retro:
+            partes.append("Retro")
+        if self.equipacion_definida:
+            partes.append(self.get_equipacion_display())
+        if self.temporada:
+            partes.append(self.temporada)
+        return " · ".join(partes)
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)

@@ -3,7 +3,8 @@ from collections import Counter
 
 from django.contrib.staticfiles import finders
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import DecimalField, Exists, OuterRef, Q, Subquery
+from django.db.models.functions import Coalesce, Least
 from django.http import Http404
 from django.shortcuts import get_object_or_404, render
 from django.templatetags.static import static
@@ -61,6 +62,32 @@ def _productos_seccion(seccion):
     return qs.filter(retro=False, equipo__tipo=tipo)
 
 
+def _una_por_camiseta(qs):
+    """Muestra cada camiseta una sola vez (la versión Fan) aunque exista también la Player.
+    Anota tiene_fan / tiene_player / precio_desde para que la tarjeta indique las versiones."""
+    misma = Producto.objects.filter(equipo=OuterRef("equipo"), codigo=OuterRef("codigo"), activo=True)
+    player = misma.filter(version="player")
+    return (qs.annotate(
+                tiene_fan=Exists(misma.filter(version="fan")),
+                tiene_player=Exists(player),
+                precio_player=Subquery(player.values("precio")[:1],
+                                       output_field=DecimalField(max_digits=10, decimal_places=0)))
+              .annotate(precio_desde=Least("precio", Coalesce("precio_player", "precio")))
+              .exclude(Q(version="player") & Q(tiene_fan=True) & ~Q(codigo="")))
+
+
+def _relacionados(p, cuantos=4):
+    """Otras camisetas (una por modelo) del mismo equipo; si faltan, de la misma liga."""
+    base = Producto.objects.filter(activo=True, retro=p.retro).select_related("equipo")
+    base = base.exclude(equipo=p.equipo, codigo=p.codigo) if p.codigo else base.exclude(pk=p.pk)
+    lista = list(_una_por_camiseta(base.filter(equipo=p.equipo)).order_by("-temporada", "codigo", "id")[:cuantos])
+    if len(lista) < cuantos:
+        parecidos = base.filter(equipo__liga=p.equipo.liga) if p.equipo.liga else base.filter(equipo__tipo=p.equipo.tipo)
+        parecidos = parecidos.exclude(equipo=p.equipo)
+        lista += list(_una_por_camiseta(parecidos).order_by("-creado", "id")[:cuantos - len(lista)])
+    return lista
+
+
 def _orden_liga(nombre):
     if nombre in LIGAS_ORDEN:
         return (0, LIGAS_ORDEN.index(nombre), "")
@@ -116,8 +143,8 @@ def _migas_producto(p):
 
 # ---------------------------------------------------------------------- vistas
 def home(request):
-    productos = (Producto.objects.filter(activo=True)
-                 .select_related("equipo").order_by("-creado", "-id")[:12])
+    productos = (_una_por_camiseta(Producto.objects.filter(activo=True).select_related("equipo"))
+                 .order_by("-creado", "-id")[:12])
     return render(request, "tienda/home.html", {"productos": productos})
 
 
@@ -174,6 +201,7 @@ def seccion(request, seccion, liga=None, equipo=None):
                   _escudo("equipos", e.nombre), sel == e) for e in equipos_liga]
         productos = base.filter(equipo__in=equipos_liga)
 
+    productos = _una_por_camiseta(productos)   # cada camiseta una sola vez; Fan/Player se elige en el detalle
     if sel:
         ctx["equipo_sel"] = True
         ctx["titulo"] = sel.nombre
@@ -220,6 +248,8 @@ def catalogo(request):
         qs = qs.filter(equipacion=equipacion)
     if temporada:
         qs = qs.filter(temporada=temporada)
+    if not version:   # sin filtro de versión: una tarjeta por camiseta
+        qs = _una_por_camiseta(qs)
     qs = qs.order_by(ORDENES.get(orden, "-creado"), "id")
 
     pagina = Paginator(qs, 12).get_page(request.GET.get("page"))
@@ -234,7 +264,7 @@ def catalogo(request):
         "ligas": (Equipo.objects.exclude(liga="").values_list("liga", flat=True)
                   .distinct().order_by("liga")),
         "equipaciones": [e for e in Producto.EQUIPACION if e[0] != "sin_definir"],
-        "temporadas": (Producto.objects.filter(activo=True)
+        "temporadas": (Producto.objects.filter(activo=True).exclude(temporada="")
                        .values_list("temporada", flat=True).distinct().order_by("-temporada")),
     })
 
@@ -248,13 +278,9 @@ def detalle(request, pk):
         hermano = (Producto.objects.filter(equipo=producto.equipo, codigo=producto.codigo, activo=True)
                    .exclude(pk=pk).first())
 
-    relacionados = (Producto.objects.filter(activo=True, equipo=producto.equipo, version=producto.version)
-                    .exclude(pk=pk).select_related("equipo")[:6])
-    if relacionados.count() < 4:
-        relacionados = (Producto.objects.filter(activo=True, equipo__tipo=producto.equipo.tipo,
-                                                version=producto.version)
-                        .exclude(pk=pk).select_related("equipo").order_by("-creado")[:6])
+    migas = _migas_producto(producto)
     return render(request, "tienda/detalle.html", {
         "p": producto, "hermano": hermano, "tallas": TALLAS,
         "info_version": INFO_VERSION.get(producto.version, ""),
-        "migas": _migas_producto(producto), "relacionados": relacionados})
+        "migas": migas, "url_equipo": migas[-1][1],
+        "relacionados": _relacionados(producto)})
