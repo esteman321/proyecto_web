@@ -355,3 +355,11 @@ a.seg__item:active { transform: scale(.96); }
 .card__price { margin-top: auto; padding-top: .85rem; }
 
 @media (max-width: 820px) { .detail__art--foto { position: relative; } }
+
+
+/* Una tarjeta por camiseta (Fan + Player) y relacionadas dentro del marco */
+.card__meta .tag + .tag { margin-left: .25rem; }
+.card__from { font-size: .75rem; font-weight: 700; color: var(--ink-soft); letter-spacing: 0; }
+.related .section__head { margin-bottom: 1.25rem; }
+.related .grid { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 900px) { .related .grid { grid-template-columns: repeat(2, 1fr); gap: .75rem; } }

@@ -12,14 +12,14 @@
   <div class="detail__art detail__art--foto"><img src="{{ p.imagen.url }}" alt="Camiseta {{ p.nombre }}"></div>
   {% else %}
   <div class="detail__art">
-    {% include "tienda/_camiseta.html" with c1=p.c1 c2=p.c2 %}
+    {% include "tienda/camiseta.html" with c1=p.c1 c2=p.c2 %}
   </div>
   {% endif %}
 
   <div class="detail__info">
     <p class="eyebrow">{{ p.equipo.get_tipo_display }}{% if p.equipo.liga %} · {{ p.equipo.liga }}{% elif p.equipo.pais %} · {{ p.equipo.pais }}{% endif %}</p>
     <h1 class="detail__title">{{ p.nombre }}</h1>
-    <p class="detail__meta">{% if p.equipacion_definida %}{{ p.get_equipacion_display }} · {% endif %}Temporada {{ p.temporada }}</p>
+    {% if p.meta %}<p class="detail__meta">{{ p.meta }}</p>{% endif %}
     <p class="detail__price">${{ p.precio|floatformat:"0g" }}</p>
 
     {% if hermano %}
@@ -54,18 +54,19 @@
       <div><dt>Equipo</dt><dd>{{ p.equipo.nombre }}</dd></div>
       <div><dt>Versión</dt><dd>{{ p.get_version_display }}</dd></div>
       {% if p.equipacion_definida %}<div><dt>Equipación</dt><dd>{{ p.get_equipacion_display }}</dd></div>{% endif %}
-      <div><dt>Temporada</dt><dd>{{ p.temporada }}</dd></div>
+      {% if p.temporada %}<div><dt>Temporada</dt><dd>{{ p.temporada }}</dd></div>{% endif %}
     </dl>
   </div>
 </section>
 
 {% if relacionados %}
-<section class="section">
-  <div class="wrap section__head"><h2>También te puede gustar</h2></div>
-  <ul class="rail" tabindex="0" aria-label="Camisetas relacionadas">
-    {% for p in relacionados %}
-      {% include "tienda/card.html" %}
-    {% endfor %}
+<section class="wrap section related">
+  <div class="section__head">
+    <h2>También te puede interesar</h2>
+    <a class="link" href="{{ url_equipo }}">Ver más de {{ p.equipo.nombre }}</a>
+  </div>
+  <ul class="grid">
+    {% for r in relacionados %}{% include "tienda/card.html" with p=r %}{% endfor %}
   </ul>
 </section>
 {% endif %}

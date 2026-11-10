@@ -43,5 +43,6 @@ class ProductoAdmin(admin.ModelAdmin):
     list_filter = ("version", "equipacion", "retro", "temporada", "activo", "equipo__liga")
     search_fields = ("nombre", "codigo", "equipo__nombre")
     list_per_page = 100
+    ordering = ("equipo__nombre", "codigo", "version")   # Fan y Player quedan juntas
     actions = [_marcar("local", "Local"), _marcar("visitante", "Visitante"),
                _marcar("tercera", "Tercera"), marcar_retro, quitar_retro]

@@ -7,7 +7,15 @@
     <div class="card__art">{% include "tienda/camiseta.html" with c1=p.c1 c2=p.c2 %}</div>
     {% endif %}
     <h3>{{ p.nombre }}</h3>
-    <p class="card__meta"><span class="tag tag--{{ p.version }}">{{ p.get_version_display }}</span>{% if p.equipacion_definida %} · {{ p.get_equipacion_display }}{% endif %}{% if p.retro %} · Retro{% endif %} · {{ p.temporada }}</p>
-    <p class="card__price">${{ p.precio|floatformat:"0g" }}</p>
+    <p class="card__meta">
+      {% if p.tiene_fan or p.tiene_player %}
+        {% if p.tiene_fan %}<span class="tag tag--fan">Fan</span>{% endif %}
+        {% if p.tiene_player %}<span class="tag tag--player">Player</span>{% endif %}
+      {% else %}
+        <span class="tag tag--{{ p.version }}">{{ p.get_version_display }}</span>
+      {% endif %}
+      {% if p.meta %}· {{ p.meta }}{% endif %}
+    </p>
+    <p class="card__price">{% if p.tiene_fan and p.tiene_player %}<span class="card__from">Desde</span> {% endif %}${{ p.precio_desde|default:p.precio|floatformat:"0g" }}</p>
   </a>
 </li>
