@@ -1,29 +1,29 @@
 """
-Importa camisetas desde carpetas y las reparte en las secciones de la tienda:
+Importa TODO el catálogo desde la carpeta media (o desde una colección suelta).
 
-    Clubes       -> carpeta "Fan - Player" (equipo con tipo="club")
-    Selecciones  -> carpeta/equipo que sea una selección (equipo con tipo="seleccion")
-    Retro        -> carpeta "Retro" (producto con retro=True)
+    media/
+      Fan - Player/                      camisetas actuales de clubes (Fan y Player)
+        Premier League/Liverpool/liverpool.jpeg        liga / equipo (carpeta) / foto
+        Liga Portuguesa/Sporting.jpeg                  liga / foto (el equipo es el nombre del archivo)
+      Retro/                             camisetas retro
+        Premier League/Liverpool/...                   igual que Fan - Player, marcadas como retro
+        Selecciones/Brasil 1970.jpeg                   retro de selecciones -> botón "Selecciones" en Retro
+      Selecciones/                       selecciones actuales: Alemania local.jpeg, Argentina despedida Messi (2).jpeg
+      camisetas/                         donde Django guarda las fotos ya importadas (se ignora)
 
-Estructuras que entiende (las carpetas contenedoras como "Fan - Player", "Retro"
-o "media" se ignoran, así que puedes apuntar a .\\media o a una subcarpeta):
+SELECCIONES: el PAÍS se busca dentro del nombre del archivo y el resto es la variante, así
+todo queda unificado en un solo equipo por país:
+    Argentina.jpg, Argentina(2).jpg           -> Argentina · Modelo 1, 2
+    Argentina Despedida Messi (1).jpg         -> Argentina · Despedida Messi
+    Beisbolera Argentina.jpg                  -> Argentina · Beisbolera
 
-    Fan - Player/Brasileirao/Atletico Mineiro/producto_008.jpg   -> club
-    Fan - Player/Liga Holandesa/producto_032.jpeg                 -> club "Varios · Liga Holandesa"
-    Selecciones/producto_010.jpg                                  -> selección "Varios · Selecciones"
-    Selecciones/Argentina/producto_001.jpg                        -> selección Argentina
-    Retro/Serie A/AC Milan/producto_003.jpg                       -> club, retro
-    Retro/Selecciones/Brasil/producto_004.jpg                     -> selección, retro
-
-Cada foto crea un producto por versión (Fan y Player por defecto; en Retro solo Fan),
-todos compartiendo el mismo archivo de imagen.
+También funciona indicando una sola colección (por ejemplo "...\\media\\Fan - Player").
+Si el nombre trae home/away/third o un año, lo detecta; si no, la equipación queda "Por definir"
+y se clasifica después en /admin/.
 
 Uso:
-    python manage.py importar_imagenes ".\\media\\Fan - Player" --dry-run
-    python manage.py importar_imagenes ".\\media\\Selecciones" --dry-run
-    python manage.py importar_imagenes ".\\media\\Retro" --dry-run
-    python manage.py importar_imagenes ".\\media\\Fan - Player" --temporada 26/27
-    python manage.py importar_imagenes ".\\media\\Mundial" --selecciones   # fuerza selecciones
+    python manage.py importar_imagenes "C:\\ruta\\media" --dry-run
+    python manage.py importar_imagenes "C:\\ruta\\media"
 """
 import re
 import unicodedata
@@ -36,267 +36,340 @@ from django.utils.text import slugify
 
 from tienda.models import Equipo, Producto
 
-# --- Ajusta estos valores a tu proyecto -------------------------------------
-CAMPO_IMAGEN = "imagen"        # nombre real del ImageField en tu modelo Producto
-TIPO_CLUB = "club"             # valor de Equipo.tipo para clubes
-TIPO_SELECCION = "seleccion"   # valor de Equipo.tipo para selecciones (revisa tus choices)
-SIN_EQUIPO = "Varios"          # equipo genérico para fotos sueltas (en una liga o en Selecciones)
-# -----------------------------------------------------------------------------
-
 EXTENSIONES = {".jpg", ".jpeg", ".png", ".webp"}
 VERSIONES = {"fan", "player"}
 RETRO = {"retro", "vintage", "classic"}
-CLAVES = [  # el orden importa: lo más específico primero
+EQUIPACIONES = [  # lo más específico primero
     ("tercera", {"third", "tercera", "3rd", "alternativa"}),
     ("visitante", {"away", "visitante", "visita"}),
     ("local", {"home", "local"}),
 ]
-ESPALDA = {"back", "atras", "detras", "trasera", "espalda", "reverso", "rear"}
+TEMPORADA_ACTUAL = "26/27"
 
-# Carpetas que solo agrupan (no son liga ni equipo); se ignoran al leer la ruta
-CONTENEDORES = {"fan player", "fan", "player", "retro", "media", "camisetas", "fan y player"}
+# Carpetas de primer nivel de media y qué significan
+COLECCIONES = {"fan player": "actual", "retro": "retro", "selecciones": "selecciones", "seleccion": "selecciones"}
+IGNORAR = {"camisetas"}          # donde Django guarda las fotos importadas
+CARPETAS_SELECCIONES = {"selecciones", "seleccion"}
+CONTENEDORES = CARPETAS_SELECCIONES | {"retro", "varios", "fan player", "fan", "player", "camisetas"}
+# Ligas que se llaman distinto en Fan - Player y en Retro (nombre normalizado -> nombre único)
+ALIAS_LIGAS = {"liga brasilena": "Brasileirao", "liga holandesa eredivisie": "Liga Holandesa"}
+# Palabras del archivo que no forman parte del nombre
+RUIDO = (RETRO | {"producto", "product", "img", "image", "imagen", "foto", "photo", "camiseta",
+                  "jersey", "shirt", "copia", "copy", "fan", "player"}
+         | {palabra for _, claves in EQUIPACIONES for palabra in claves})
 
-# Si una carpeta suelta contiene alguna de estas palabras, se trata como LIGA
-PALABRAS_LIGA = {
-    "liga", "league", "serie", "bundesliga", "ligue", "premier", "eredivisie",
-    "brasileirao", "primeira", "lig", "championship", "mls",
-}
-
-# Palabras en el nombre de una carpeta que indican "esto son selecciones"
-PALABRAS_SELECCION = {
-    "seleccion", "selecciones", "seleccionados", "national", "nacional", "nacionales",
-    "nations", "internacional", "internacionales", "mundial", "eurocopa", "copa america",
-}
-
-# Respaldo: si el equipo se llama exactamente como un país, se considera selección
-PAISES = {
-    "argentina", "brasil", "brazil", "colombia", "uruguay", "chile", "peru", "ecuador",
-    "paraguay", "bolivia", "venezuela", "mexico", "usa", "estados unidos", "canada",
-    "costa rica", "espana", "spain", "francia", "france", "alemania", "germany",
-    "italia", "italy", "portugal", "inglaterra", "england", "holanda", "paises bajos",
-    "netherlands", "belgica", "belgium", "croacia", "croatia", "suiza", "dinamarca",
-    "suecia", "noruega", "polonia", "serbia", "escocia", "gales", "turquia", "japon",
-    "japan", "corea del sur", "south korea", "australia", "marruecos", "morocco",
-    "senegal", "nigeria", "ghana", "camerun", "egipto", "tunez", "argelia",
-    "arabia saudita", "iran", "catar", "qatar",
-}
+SELECCIONES = [
+    "Albania", "Alemania", "Arabia Saudita", "Argelia", "Argentina", "Australia", "Austria", "Bélgica",
+    "Bolivia", "Bosnia", "Brasil", "Cabo Verde", "Camerún", "Canadá", "Chile", "China", "Colombia",
+    "Corea del Sur", "Costa de Marfil", "Costa Rica", "Croacia", "Curazao", "Dinamarca", "Ecuador",
+    "Egipto", "Escocia", "Eslovaquia", "Eslovenia", "España", "Estados Unidos", "Finlandia", "Francia",
+    "Gales", "Georgia", "Ghana", "Grecia", "Haití", "Honduras", "Hungría", "Inglaterra", "Irak", "Irán",
+    "Irlanda", "Islandia", "Israel", "Italia", "Jamaica", "Japón", "Jordania", "Marruecos", "México",
+    "Nigeria", "Noruega", "Nueva Zelanda", "Países Bajos", "Panamá", "Paraguay", "Perú", "Polonia",
+    "Portugal", "Catar", "República Checa", "Rumania", "Rusia", "Senegal", "Serbia", "Sudáfrica",
+    "Suecia", "Suiza", "Túnez", "Turquía", "Ucrania", "Uruguay", "Uzbekistán", "Venezuela",
+]
+ALIAS = {"Holanda": "Países Bajos", "Qatar": "Catar", "USA": "Estados Unidos", "EEUU": "Estados Unidos",
+         "Brazil": "Brasil", "Corea": "Corea del Sur"}
 
 
+# ---------------------------------------------------------------- utilidades
 def normalizar(texto):
     """Minúsculas, sin tildes ni símbolos: 'Bayern_München' -> 'bayern munchen'."""
     ascii_ = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
     return re.sub(r"[^a-z0-9]+", " ", ascii_.lower()).strip()
 
 
-def palabras(texto):
-    return set(normalizar(texto).split())
-
-
-def es_espalda(ruta):
-    return bool(palabras(ruta.stem) & ESPALDA)
-
-
-def es_liga(nombre):
-    return bool(palabras(nombre) & PALABRAS_LIGA)
-
-
-def es_carpeta_seleccion(nombre):
-    return bool(palabras(nombre) & PALABRAS_SELECCION)
-
-
-def carpetas_de(ruta, raiz):
-    """Carpetas entre la raíz y el archivo, sin las 'contenedoras'."""
-    carpetas = [c.replace("_", " ").strip() for c in ruta.relative_to(raiz).parts[:-1]]
-    return [c for c in carpetas if normalizar(c) not in CONTENEDORES]
-
-
-def nombres_de_ruta(ruta, raiz):
-    """Todos los nombres de carpeta relevantes (incluida la raíz) para detectar retro/selecciones."""
-    return [raiz.name] + list(ruta.relative_to(raiz).parts[:-1])
-
-
 def detectar_equipacion(stem):
-    """Devuelve local/visitante/tercera si el nombre lo dice; si no, None."""
-    pals = palabras(stem)
-    for equipacion, claves in CLAVES:
-        if pals & claves:
+    """local / visitante / tercera si el nombre lo dice; si no, None."""
+    palabras = set(normalizar(stem).split())
+    for equipacion, claves in EQUIPACIONES:
+        if palabras & claves:
             return equipacion
     return None
 
 
-def detectar_temporada(stem, por_defecto):
+def detectar_temporada(stem):
+    """'2024-25' -> '24/25', '1998' -> '1998'; None si el nombre no trae año."""
     m = re.search(r"((?:19|20)\d{2})\s*[-_/]\s*((?:19|20)?\d{2})(?!\d)", stem)
     if m:
         return f"{m.group(1)[2:]}/{m.group(2)[-2:]}"
     m = re.search(r"(?<!\d)((?:19|20)\d{2})(?!\d)", stem)
-    return m.group(1) if m else por_defecto
+    return m.group(1) if m else None
 
 
 def numero_modelo(stem):
+    """Para nombres tipo 'producto_018' -> '018'."""
     m = re.search(r"(\d+)\D*$", stem)
     return m.group(1) if m else stem
 
 
+def separar_numero(stem):
+    """'Brasil(3)' -> ('Brasil', 3);  'Brasil 2' -> ('Brasil', 2);  'Brasil' -> ('Brasil', 1).
+    Solo toma números de 1-2 dígitos, para no confundirlos con un año (1994)."""
+    m = (re.search(r"\s*[\(\[]\s*(\d+)\s*[\)\]]\s*$", stem)
+         or re.search(r"[\s_\-]+(\d{1,2})\s*$", stem))
+    if m:
+        return stem[:m.start()].strip(), int(m.group(1))
+    return stem.strip(), 1
+
+
+def limpiar_nombre(texto):
+    texto = texto.replace("_", " ").strip()
+    return texto.title() if texto.islower() else texto
+
+
+def _palabras_utiles(texto, excluir=()):
+    """Palabras del texto sin número de copia, años, ruido ni las de `excluir`."""
+    base, _ = separar_numero(texto)
+    return [w for w in re.split(r"[\s_\-]+", base)
+            if w and re.search(r"[^\W\d_]", w)                       # con letras (fuera años)
+            and normalizar(w) not in RUIDO and normalizar(w) not in excluir]
+
+
+def nombre_desde_archivo(stem):
+    """'Sporting (2)' -> 'Sporting'.  None si el archivo es genérico ('producto_018')."""
+    palabras = _palabras_utiles(stem)
+    return limpiar_nombre(" ".join(palabras)) if palabras else None
+
+
+def variante_y_numero(stem, equipo):
+    """Para fotos dentro de la carpeta de un equipo.
+    'producto_018' -> ('', '018');  'liverpool (2)' -> ('', 2);  'liverpool entrenamiento' -> ('Entrenamiento', 1)"""
+    if nombre_desde_archivo(stem) is None:
+        return "", numero_modelo(stem)
+    palabras = _palabras_utiles(stem, excluir=set(normalizar(equipo).split()))
+    return " ".join(w.title() if w.islower() else w for w in palabras), separar_numero(stem)[1]
+
+
+def canonica_liga(nombre):
+    return ALIAS_LIGAS.get(normalizar(nombre), nombre)
+
+
+def _indice_selecciones():
+    indice = {tuple(normalizar(n).split()): n for n in SELECCIONES}
+    for alias, nombre in ALIAS.items():
+        indice[tuple(normalizar(alias).split())] = nombre
+    return indice
+
+
+INDICE_SELECCIONES = _indice_selecciones()
+
+
+def detectar_seleccion(texto):
+    """Busca un país DENTRO del texto y devuelve (país, variante), o None si no hay ninguno.
+    'Beisbolera Argentina' -> ('Argentina', 'Beisbolera');  'Argentina Despedida Messi (1)' ->
+    ('Argentina', 'Despedida Messi')."""
+    base, _ = separar_numero(texto)
+    palabras = [w for w in re.split(r"[\s_\-]+", base) if w]
+    norm = [normalizar(w) for w in palabras]
+    mejor = None  # (nº de palabras del país, posición, país): gana el nombre más largo
+    for clave, pais in INDICE_SELECCIONES.items():
+        n = len(clave)
+        for i in range(len(norm) - n + 1):
+            if tuple(norm[i:i + n]) == clave:
+                if mejor is None or n > mejor[0]:
+                    mejor = (n, i, pais)
+                break
+    if mejor is None:
+        return None
+    n, i, pais = mejor
+    resto = [w for w in palabras[:i] + palabras[i + n:]
+             if re.search(r"[^\W\d_]", w) and normalizar(w) not in RUIDO]
+    return pais, " ".join(w.title() if w.islower() else w for w in resto)
+
+
+# ------------------------------------------------------------------- comando
 class Command(BaseCommand):
-    help = "Importa imágenes de camisetas y las reparte en Clubes, Selecciones y Retro."
+    help = "Importa el catálogo desde la carpeta media (Fan - Player, Retro, Selecciones)."
 
     def add_arguments(self, parser):
-        parser.add_argument("carpeta")
+        parser.add_argument("carpeta", help="La carpeta media (o una colección suelta).")
         parser.add_argument("--dry-run", action="store_true", help="Muestra qué haría sin guardar nada.")
         parser.add_argument("--reemplazar", action="store_true", help="Reemplaza imágenes ya asignadas.")
-        parser.add_argument("--temporada", default="26/27", help="Temporada si el archivo no la indica.")
-        parser.add_argument("--selecciones", action="store_true", help="Fuerza que todo sean selecciones.")
-        parser.add_argument("--versiones", default=None,
-                            help="Versiones por foto (fan,player). Por defecto: fan+player; en retro solo fan.")
+        parser.add_argument("--temporada", default=None,
+                            help=f"Temporada si el archivo no la indica (por defecto {TEMPORADA_ACTUAL}; "
+                                 "en retro queda vacía).")
+        parser.add_argument("--versiones", default="fan,player",
+                            help="Versiones a crear por foto en Fan - Player y Selecciones.")
+        parser.add_argument("--versiones-retro", default="fan", help="Versiones a crear por foto en Retro.")
         parser.add_argument("--precio-fan", type=int, default=75000)
         parser.add_argument("--precio-player", type=int, default=90000)
-        parser.add_argument("--retro", action="store_true", help="Fuerza que todo lo importado sea retro.")
 
     def handle(self, *args, **o):
-        raiz = Path(o["carpeta"]).resolve()
+        raiz = Path(o["carpeta"])
         if not raiz.is_dir():
             raise CommandError(f"No existe la carpeta: {raiz}")
 
-        versiones_arg = None
-        if o["versiones"]:
-            versiones_arg = [v.strip().lower() for v in o["versiones"].split(",") if v.strip()]
-            if not versiones_arg or set(versiones_arg) - VERSIONES:
-                raise CommandError("--versiones solo acepta: fan, player (separadas por coma).")
+        self.versiones = self._leer_versiones(o["versiones"])
+        self.versiones_retro = self._leer_versiones(o["versiones_retro"])
+        self.precios = {"fan": o["precio_fan"], "player": o["precio_player"]}
+        self.dry, self.reemplazar, self.temporada = o["dry_run"], o["reemplazar"], o["temporada"]
+        self.stats = dict(equipos=0, productos=0, imagenes=0, omitidas=0)
+        self.no_reconocidas = set()
+        self.equipos = {normalizar(e.nombre): e for e in Equipo.objects.all()}
 
-        precios = {"fan": o["precio_fan"], "player": o["precio_player"]}
-        dry = o["dry_run"]
-
-        archivos = [p for p in raiz.rglob("*") if p.suffix.lower() in EXTENSIONES]
+        archivos = [p for p in raiz.rglob("*") if p.suffix.lower() in EXTENSIONES
+                    and not (len(p.relative_to(raiz).parts) > 1
+                             and normalizar(p.relative_to(raiz).parts[0]) in IGNORAR)]
+        archivos.sort(key=str)
         if not archivos:
             raise CommandError("No encontré imágenes (.jpg, .jpeg, .png, .webp) en esa carpeta.")
-        archivos.sort(key=lambda p: str(p))
-
-        existentes = {normalizar(e.nombre): e for e in Equipo.objects.all()}
-        stats = dict(equipos=0, productos=0, imagenes=0, omitidas=0, extras=0,
-                     selecciones=0, retro=0, actualizados=0)
+        # ¿me dieron la carpeta "padre" (media) o una colección suelta?
+        self.modo_media = any(len(p.relative_to(raiz).parts) > 1
+                              and normalizar(p.relative_to(raiz).parts[0]) in COLECCIONES for p in archivos)
 
         with transaction.atomic():
             for ruta in archivos:
-                if es_espalda(ruta):  # fotos de espalda: por ahora se ignoran
-                    stats["extras"] += 1
-                    continue
-
-                # --- liga / equipo según las carpetas -------------------------------
-                carpetas = carpetas_de(ruta, raiz)
-                # Las carpetas tipo "Selecciones" son categoría, no liga ni equipo
-                carpetas_utiles = [c for c in carpetas if not es_carpeta_seleccion(c)]
-                en_carpeta_selecciones = len(carpetas_utiles) != len(carpetas)
-                modo_selecciones = (
-                    o["selecciones"]
-                    or en_carpeta_selecciones
-                    or any(es_carpeta_seleccion(n) for n in nombres_de_ruta(ruta, raiz))
-                )
-
-                if len(carpetas_utiles) >= 2:
-                    liga, nombre_equipo = carpetas_utiles[-2], carpetas_utiles[-1]
-                elif len(carpetas_utiles) == 1:
-                    unica = carpetas_utiles[0]
-                    if modo_selecciones or normalizar(unica) in PAISES:
-                        liga, nombre_equipo = "", unica          # .../Selecciones/Argentina/foto
-                    elif es_liga(unica):
-                        liga, nombre_equipo = unica, f"{SIN_EQUIPO} · {unica}"   # foto suelta en una liga
-                    else:
-                        liga, nombre_equipo = "", unica          # .../Equipo/foto
-                else:
-                    if modo_selecciones:
-                        # .../Selecciones/producto_010.jpg -> foto suelta de selecciones
-                        liga, nombre_equipo = "", f"{SIN_EQUIPO} · Selecciones"
-                    else:
-                        self.stdout.write(self.style.WARNING(f"  omitida (sin carpeta de liga/equipo): {ruta}"))
-                        stats["omitidas"] += 1
-                        continue
-
-                # --- ¿selección o club? ---------------------------------------------
-                es_seleccion = modo_selecciones or normalizar(nombre_equipo) in PAISES
-                tipo = TIPO_SELECCION if es_seleccion else TIPO_CLUB
-                if es_seleccion:
-                    liga = ""   # las selecciones no pertenecen a una liga de clubes
-
-                # --- ¿retro? --------------------------------------------------------
-                es_retro = (
-                    o["retro"]
-                    or any(palabras(n) & RETRO for n in nombres_de_ruta(ruta, raiz))
-                    or bool(palabras(ruta.stem) & RETRO)
-                )
-
-                # --- equipo ----------------------------------------------------------
-                clave_equipo = normalizar(nombre_equipo)
-                equipo = existentes.get(clave_equipo)
-                if equipo is None:
-                    equipo = Equipo.objects.create(nombre=nombre_equipo, tipo=tipo, liga=liga)
-                    existentes[clave_equipo] = equipo
-                    stats["equipos"] += 1
-                else:
-                    cambios = []
-                    if es_seleccion and equipo.tipo != TIPO_SELECCION:
-                        equipo.tipo = TIPO_SELECCION   # lo saca de Clubes y lo pasa a Selecciones
-                        cambios.append("tipo")
-                    if liga and not equipo.liga:
-                        equipo.liga = liga
-                        cambios.append("liga")
-                    if cambios:
-                        equipo.save(update_fields=cambios)
-
-                # --- producto(s) -----------------------------------------------------
-                codigo = slugify(ruta.stem)
-                if es_retro and not codigo.startswith("retro"):
-                    codigo = f"retro-{codigo}"   # evita chocar con producto_001 de otra carpeta
-                equipacion = detectar_equipacion(ruta.stem)
-                temporada = detectar_temporada(ruta.stem, o["temporada"])
-                nombre = (f"{equipo.nombre} {equipacion}" if equipacion else
-                          f"{equipo.nombre} · {'Retro' if es_retro else 'Modelo'} {numero_modelo(ruta.stem)}")
-
-                versiones = versiones_arg or (["fan"] if es_retro else ["fan", "player"])
-                seccion = "Retro" if es_retro else ("Selecciones" if es_seleccion else "Clubes")
-                if es_seleccion:
-                    stats["selecciones"] += 1
-                if es_retro:
-                    stats["retro"] += 1
-
-                self.stdout.write(
-                    f"  [{seccion}] {liga or '-'} / {equipo.nombre} / {codigo}  ->  {' + '.join(versiones)}")
-
-                ruta_imagen = None  # el primer producto guarda el archivo; los demás lo comparten
-                for version in versiones:
-                    producto, creado = Producto.objects.get_or_create(
-                        equipo=equipo, codigo=codigo, version=version,
-                        defaults={"nombre": nombre, "equipacion": equipacion or "sin_definir",
-                                  "retro": es_retro, "temporada": temporada, "precio": precios[version]},
-                    )
-                    stats["productos"] += creado
-
-                    # Si el producto ya existía, corrige su marca de retro
-                    if not creado and producto.retro != es_retro:
-                        producto.retro = es_retro
-                        producto.save(update_fields=["retro"])
-                        stats["actualizados"] += 1
-
-                    campo = getattr(producto, CAMPO_IMAGEN)
-                    if campo and not o["reemplazar"]:
-                        ruta_imagen = ruta_imagen or campo.name
-                        continue
-                    if not dry:
-                        if ruta_imagen is None:
-                            archivo = f"{slugify(equipo.nombre)}-{codigo}{ruta.suffix.lower()}"
-                            with ruta.open("rb") as f:
-                                campo.save(archivo, File(f), save=True)
-                            ruta_imagen = campo.name
-                        else:
-                            campo.name = ruta_imagen
-                            producto.save(update_fields=[CAMPO_IMAGEN])
-                    stats["imagenes"] += 1
-
-            if dry:
+                self._importar(ruta, raiz)
+            if self.dry:
                 transaction.set_rollback(True)
 
-        etiqueta = "SIMULACIÓN (no se guardó nada)" if dry else "Listo"
+        s = self.stats
+        titulo = "SIMULACIÓN (no se guardó nada)" if self.dry else "Listo"
         self.stdout.write(self.style.SUCCESS(
-            f"{etiqueta}: {stats['productos']} productos nuevos, {stats['imagenes']} imágenes asignadas, "
-            f"{stats['equipos']} equipos nuevos, {stats['selecciones']} fotos de selecciones, "
-            f"{stats['retro']} fotos retro, {stats['actualizados']} productos corregidos, "
-            f"{stats['extras']} fotos de espalda ignoradas, {stats['omitidas']} omitidas."))
+            f"{titulo}: {s['productos']} productos nuevos, {s['imagenes']} imágenes asignadas, "
+            f"{s['equipos']} equipos nuevos, {s['omitidas']} omitidas."))
+        if self.no_reconocidas:
+            self.stdout.write(self.style.WARNING(
+                "Selecciones que no reconocí (se crearon con el nombre del archivo; si son un país con "
+                "variante, agrégalo a SELECCIONES en este archivo): " + ", ".join(sorted(self.no_reconocidas))))
+
+    def _leer_versiones(self, texto):
+        versiones = [v.strip().lower() for v in texto.split(",") if v.strip()]
+        if not versiones or set(versiones) - VERSIONES:
+            raise CommandError("Las versiones solo pueden ser: fan, player (separadas por coma).")
+        return versiones
+
+    # -- un archivo -> equipo + productos
+    def _importar(self, ruta, raiz):
+        carpetas = [c.replace("_", " ").strip() for c in ruta.relative_to(raiz).parts[:-1]]
+
+        # 1) ¿A qué colección pertenece?
+        if normalizar(raiz.name) in COLECCIONES:                 # me dieron la colección directamente
+            coleccion, resto = COLECCIONES[normalizar(raiz.name)], carpetas
+        elif carpetas and normalizar(carpetas[0]) in COLECCIONES:  # me dieron media
+            coleccion, resto = COLECCIONES[normalizar(carpetas[0])], carpetas[1:]
+        elif self.modo_media:
+            self.stdout.write(self.style.WARNING(f"  carpeta ignorada: {ruta.relative_to(raiz)}"))
+            self.stats["omitidas"] += 1
+            return
+        else:                                                    # estructura clásica: ya son las ligas
+            coleccion, resto = "actual", carpetas
+
+        es_retro = coleccion == "retro"
+        es_seleccion = coleccion == "selecciones" or any(normalizar(c) in CARPETAS_SELECCIONES for c in resto)
+
+        # 2) ¿Qué equipo es?
+        liga, variante = "", ""
+        if es_seleccion:                                          # el país sale del nombre del archivo
+            resuelto = self._resolver_seleccion(ruta, resto)
+            nombre_equipo, variante, numero = resuelto if resuelto else (None, "", None)
+        else:
+            liga = canonica_liga(resto[0]) if resto else ""
+            if len(resto) >= 2:                                   # liga / equipo (carpeta) / foto
+                nombre_equipo = resto[1]
+                variante, numero = variante_y_numero(ruta.stem, nombre_equipo)
+            else:                                                 # liga / foto: el equipo es el archivo
+                nombre_equipo, numero = nombre_desde_archivo(ruta.stem), separar_numero(ruta.stem)[1]
+
+        if not nombre_equipo:
+            self.stdout.write(self.style.WARNING(
+                f"  omitida (no pude deducir el equipo): {ruta.relative_to(raiz)}"))
+            self.stats["omitidas"] += 1
+            return
+
+        equipo = self._equipo(nombre_equipo, liga, es_seleccion)
+        datos = self._datos(ruta, equipo, numero, variante, es_retro)
+        etiqueta = " · ".join(filter(None, [
+            "selección" if es_seleccion else "",
+            datos["equipacion"] if datos["equipacion"] != "sin_definir" else "equipación ?",
+            datos["temporada"] or "sin temporada",
+            "retro" if datos["retro"] else ""]))
+        self.stdout.write(f"  {liga or '-'} / {equipo.nombre} / {datos['codigo']}  [{etiqueta}]")
+        self._guardar(ruta, equipo, datos, self.versiones_retro if es_retro else self.versiones)
+
+    def _resolver_seleccion(self, ruta, carpetas):
+        """-> (país, variante, número) o None.  El país se busca en el nombre del archivo."""
+        stem = ruta.stem
+        utiles = [c for c in carpetas if normalizar(c) not in CONTENEDORES]
+        hallado = detectar_seleccion(stem)
+        if hallado:
+            return hallado[0], hallado[1], separar_numero(stem)[1]
+
+        nombre = nombre_desde_archivo(stem)
+        if nombre is None and utiles:          # archivo genérico (producto_001): vale la carpeta
+            hallado = detectar_seleccion(utiles[-1])
+            pais, variante = hallado if hallado else (limpiar_nombre(utiles[-1]), "")
+            return pais, variante, numero_modelo(stem)
+        if nombre:                             # país que no está en la lista
+            self.no_reconocidas.add(nombre)
+            return nombre, "", separar_numero(stem)[1]
+        return None
+
+    def _equipo(self, nombre, liga, es_seleccion):
+        tipo = "seleccion" if es_seleccion else "club"
+        clave = normalizar(nombre)           # 'Bayern Munich' coincide con 'Bayern Múnich'
+        equipo = self.equipos.get(clave)
+        if equipo is None:
+            equipo = Equipo.objects.create(nombre=nombre, tipo=tipo, liga=liga)
+            self.equipos[clave] = equipo
+            self.stats["equipos"] += 1
+        elif es_seleccion and equipo.tipo != "seleccion":
+            equipo.tipo, equipo.liga = "seleccion", ""
+            equipo.save(update_fields=["tipo", "liga"])
+        elif liga and (not equipo.liga or normalizar(equipo.liga) in CONTENEDORES):
+            equipo.liga = liga               # también corrige ligas falsas como "Fan - Player"
+            equipo.save(update_fields=["liga"])
+        return equipo
+
+    def _datos(self, ruta, equipo, numero, variante, es_retro):
+        stem = ruta.stem
+        retro = es_retro or bool(set(normalizar(stem).split()) & RETRO)
+        codigo = slugify(stem)
+        if retro and not codigo.startswith("retro"):
+            codigo = f"retro-{codigo}"       # evita chocar con producto_001 de Fan - Player
+
+        temporada = detectar_temporada(stem)
+        if temporada is None:
+            if self.temporada is not None:
+                temporada = self.temporada
+            else:
+                temporada = "" if retro else TEMPORADA_ACTUAL   # retro: se completa en /admin/
+
+        equipacion = detectar_equipacion(stem)
+        nombre = equipo.nombre + (f" {equipacion}" if equipacion else "")
+        if variante:
+            nombre += f" · {variante}"
+        if retro and (equipacion or variante):
+            nombre += " retro"
+        if not equipacion and not variante:
+            nombre += f" · {'Retro' if retro else 'Modelo'} {numero}"
+        elif str(numero).isdigit() and int(numero) > 1:
+            nombre += f" {int(numero)}"
+        return {"codigo": codigo, "equipacion": equipacion or "sin_definir",
+                "temporada": temporada, "retro": retro, "nombre": nombre}
+
+    def _guardar(self, ruta, equipo, d, versiones):
+        ruta_imagen = None  # el primer producto guarda el archivo; los demás lo comparten
+        for version in versiones:
+            producto, creado = Producto.objects.get_or_create(
+                equipo=equipo, codigo=d["codigo"], version=version,
+                defaults={"nombre": d["nombre"], "equipacion": d["equipacion"], "retro": d["retro"],
+                          "temporada": d["temporada"], "precio": self.precios[version]},
+            )
+            self.stats["productos"] += creado
+
+            if producto.imagen and not self.reemplazar:
+                ruta_imagen = ruta_imagen or producto.imagen.name
+                continue
+            if not self.dry:
+                if ruta_imagen is None:
+                    archivo = f"{slugify(equipo.nombre)}-{d['codigo']}{ruta.suffix.lower()}"
+                    with ruta.open("rb") as f:
+                        producto.imagen.save(archivo, File(f), save=True)
+                    ruta_imagen = producto.imagen.name
+                else:
+                    producto.imagen.name = ruta_imagen
+                    producto.save(update_fields=["imagen"])
+            self.stats["imagenes"] += 1
