@@ -142,13 +142,19 @@ def _migas_producto(p):
 
 
 # ---------------------------------------------------------------------- vistas
-def home(request):
+# Cada pantalla tiene una función contexto_*() que arma los datos (la usan las plantillas Y la API
+# de React) y una vista que solo los pinta.
+def contexto_home():
     productos = (_una_por_camiseta(Producto.objects.filter(activo=True).select_related("equipo"))
                  .order_by("-creado", "-id")[:12])
-    return render(request, "tienda/home.html", {"productos": productos})
+    return {"productos": productos}
 
 
-def seccion(request, seccion, liga=None, equipo=None):
+def home(request):
+    return render(request, "tienda/home.html", contexto_home())
+
+
+def contexto_seccion(request, seccion, liga=None, equipo=None):
     """Clubes / Retro: liga -> club -> equipación.  Selecciones: selección -> equipación."""
     base = _productos_seccion(seccion)
     equipos = list(Equipo.objects.filter(pk__in=base.values_list("equipo_id", flat=True)).order_by("nombre"))
@@ -184,7 +190,7 @@ def seccion(request, seccion, liga=None, equipo=None):
             ctx["eyebrow"] = f"{nombre_seccion} · Elige tu liga"
             ctx["subtitulo"] = "Toca el escudo de tu liga y luego el de tu equipo."
             ctx["migas"] = migas
-            return render(request, "tienda/seccion.html", ctx)
+            return ctx
 
         equipos_liga = grupos[nombre_liga]
         sel = _buscar_equipo(equipos_liga, equipo) if equipo else None
@@ -214,7 +220,7 @@ def seccion(request, seccion, liga=None, equipo=None):
         if elegido not in conteo:
             elegido = next((k for k, _ in BUCKETS if conteo[k]), None)
         ctx["selector"] = [{"nombre": n, "count": conteo[k], "activo": k == elegido,
-                            "url": f"{request.path}?eq={k}"} for k, n in BUCKETS]
+                            "url": f"{request.path.removeprefix('/api')}?eq={k}"} for k, n in BUCKETS]
         if elegido:
             productos = _filtrar_bucket(productos, elegido)
             ctx["querystring"] = f"eq={elegido}"
@@ -222,10 +228,14 @@ def seccion(request, seccion, liga=None, equipo=None):
     ctx["migas"] = migas
     productos = productos.order_by("-temporada", "codigo", "version", "id")
     ctx["pagina"] = Paginator(productos, 12).get_page(request.GET.get("page"))
-    return render(request, "tienda/seccion.html", ctx)
+    return ctx
 
 
-def catalogo(request):
+def seccion(request, seccion, liga=None, equipo=None):
+    return render(request, "tienda/seccion.html", contexto_seccion(request, seccion, liga, equipo))
+
+
+def contexto_catalogo(request):
     qs = Producto.objects.filter(activo=True).select_related("equipo")
 
     q = request.GET.get("q", "").strip()
@@ -256,7 +266,7 @@ def catalogo(request):
     params = request.GET.copy()
     params.pop("page", None)
 
-    return render(request, "tienda/catalogo.html", {
+    return {
         "pagina": pagina, "querystring": params.urlencode(),
         "q": q, "tipo": tipo, "liga": liga, "version": version,
         "equipacion": equipacion, "temporada": temporada, "orden": orden,
@@ -266,10 +276,14 @@ def catalogo(request):
         "equipaciones": [e for e in Producto.EQUIPACION if e[0] != "sin_definir"],
         "temporadas": (Producto.objects.filter(activo=True).exclude(temporada="")
                        .values_list("temporada", flat=True).distinct().order_by("-temporada")),
-    })
+    }
 
 
-def detalle(request, pk):
+def catalogo(request):
+    return render(request, "tienda/catalogo.html", contexto_catalogo(request))
+
+
+def contexto_detalle(pk):
     producto = get_object_or_404(
         Producto.objects.select_related("equipo"), pk=pk, activo=True)
 
@@ -279,8 +293,12 @@ def detalle(request, pk):
                    .exclude(pk=pk).first())
 
     migas = _migas_producto(producto)
-    return render(request, "tienda/detalle.html", {
+    return {
         "p": producto, "hermano": hermano, "tallas": TALLAS,
         "info_version": INFO_VERSION.get(producto.version, ""),
         "migas": migas, "url_equipo": migas[-1][1],
-        "relacionados": _relacionados(producto)})
+        "relacionados": _relacionados(producto)}
+
+
+def detalle(request, pk):
+    return render(request, "tienda/detalle.html", contexto_detalle(pk))
