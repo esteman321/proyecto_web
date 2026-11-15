@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Pedido confirmado · Tribuna{% endblock %}
+{% block content %}
+
+<section class="wrap section--tight">
+  <div class="confirmation">
+    <div class="confirmation__icon">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="m8 12 3 3 5-5"/>
+      </svg>
+    </div>
+    <h1 class="confirmation__title">¡Pago exitoso!</h1>
+    <p class="confirmation__subtitle">Tu pedido ha sido confirmado y está siendo preparado.</p>
+
+    <div class="order-card">
+      <div class="order-card__header">
+        <div>
+          <span class="order-card__label">Número de pedido</span>
+          <span class="order-card__value">#{{ pedido.numero.hex|truncatechars:12|upper }}</span>
+        </div>
+        <div>
+          <span class="order-card__label">Fecha</span>
+          <span class="order-card__value">{{ pedido.creado|date:"d/m/Y H:i" }}</span>
+        </div>
+        <div>
+          <span class="order-card__label">Estado</span>
+          <span class="order-status order-status--{{ pedido.estado_pedido }}">{{ pedido.get_estado_pedido_display }}</span>
+        </div>
+      </div>
+
+      <div class="order-card__items">
+        {% for item in items %}
+        <div class="order-item">
+          <div class="order-item__info">
+            <span class="order-item__name">{{ item.nombre_producto }}</span>
+            <span class="order-item__meta">{{ item.version|title }} · Talla {{ item.talla }} · x{{ item.cantidad }}</span>
+          </div>
+          <span class="order-item__price">${{ item.subtotal|floatformat:"0g" }}</span>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="order-card__footer">
+        <div class="order-card__detail">
+          <span>Envío a</span>
+          <span>{{ pedido.direccion }}, {{ pedido.ciudad }}</span>
+        </div>
+        <div class="order-card__detail">
+          <span>Pago</span>
+          <span>Tarjeta ****{{ pedido.ultimos_4 }}</span>
+        </div>
+        <div class="order-card__detail order-card__total">
+          <span>Total pagado</span>
+          <span>${{ pedido.total|floatformat:"0g" }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="confirmation__actions">
+      <a href="{% url 'home' %}" class="btn btn--blue">Volver al inicio</a>
+      <a href="{% url 'catalogo' %}" class="btn btn--soft">Seguir comprando</a>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

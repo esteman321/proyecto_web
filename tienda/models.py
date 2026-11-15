@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import models
 from django.utils.text import slugify
 
@@ -81,3 +83,95 @@ class Producto(models.Model):
 
     def __str__(self):
         return f"{self.nombre} ({self.get_version_display()}) {self.temporada}"
+
+
+# ======================================================================
+# Carrito de compras (basado en sesión)
+# ======================================================================
+
+class Carrito(models.Model):
+    """Carrito vinculado a una sesión del navegador."""
+    session_key = models.CharField(max_length=40, unique=True, db_index=True)
+    creado = models.DateTimeField(auto_now_add=True)
+    actualizado = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Carrito {self.pk} ({self.session_key[:8]}…)"
+
+    @property
+    def total(self):
+        return sum(item.subtotal for item in self.items.all())
+
+    @property
+    def cantidad_total(self):
+        return sum(item.cantidad for item in self.items.all())
+
+
+class ItemCarrito(models.Model):
+    carrito = models.ForeignKey(Carrito, on_delete=models.CASCADE, related_name="items")
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE)
+    talla = models.CharField(max_length=5)
+    cantidad = models.PositiveIntegerField(default=1)
+    agregado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("carrito", "producto", "talla")
+        ordering = ["-agregado"]
+
+    @property
+    def subtotal(self):
+        return self.producto.precio * self.cantidad
+
+    def __str__(self):
+        return f"{self.producto.nombre} ({self.talla}) x{self.cantidad}"
+
+
+# ======================================================================
+# Pedidos (se crean al completar el checkout)
+# ======================================================================
+
+ESTADOS_PEDIDO = [
+    ("pendiente", "Pendiente"),
+    ("pagado", "Pagado"),
+    ("enviado", "Enviado"),
+    ("entregado", "Entregado"),
+    ("cancelado", "Cancelado"),
+]
+
+
+class Pedido(models.Model):
+    numero = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    nombre = models.CharField(max_length=120)
+    email = models.EmailField()
+    telefono = models.CharField(max_length=20, blank=True)
+    direccion = models.TextField()
+    ciudad = models.CharField(max_length=80)
+    estado_pedido = models.CharField(max_length=12, choices=ESTADOS_PEDIDO, default="pendiente")
+    total = models.DecimalField(max_digits=12, decimal_places=0)
+    # Datos simulados de pago
+    ultimos_4 = models.CharField(max_length=4, blank=True)
+    metodo_pago = models.CharField(max_length=30, default="tarjeta_simulada")
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-creado"]
+
+    def __str__(self):
+        return f"Pedido {self.numero.hex[:8].upper()} · ${self.total}"
+
+
+class ItemPedido(models.Model):
+    pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE, related_name="items")
+    producto = models.ForeignKey(Producto, on_delete=models.SET_NULL, null=True)
+    nombre_producto = models.CharField(max_length=150)
+    version = models.CharField(max_length=10)
+    talla = models.CharField(max_length=5)
+    precio = models.DecimalField(max_digits=10, decimal_places=0)
+    cantidad = models.PositiveIntegerField(default=1)
+
+    @property
+    def subtotal(self):
+        return self.precio * self.cantidad
+
+    def __str__(self):
+        return f"{self.nombre_producto} ({self.talla}) x{self.cantidad}"

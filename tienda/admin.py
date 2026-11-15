@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Equipo, Producto
+from .models import Equipo, Producto, Carrito, ItemCarrito, Pedido, ItemPedido
 
 
 @admin.register(Equipo)
@@ -46,3 +46,32 @@ class ProductoAdmin(admin.ModelAdmin):
     ordering = ("equipo__nombre", "codigo", "version")   # Fan y Player quedan juntas
     actions = [_marcar("local", "Local"), _marcar("visitante", "Visitante"),
                _marcar("tercera", "Tercera"), marcar_retro, quitar_retro]
+
+
+class ItemCarritoInline(admin.TabularInline):
+    model = ItemCarrito
+    extra = 0
+    readonly_fields = ("producto", "talla", "cantidad", "subtotal")
+
+
+@admin.register(Carrito)
+class CarritoAdmin(admin.ModelAdmin):
+    list_display = ("pk", "session_key", "cantidad_total", "total", "actualizado")
+    readonly_fields = ("session_key",)
+    inlines = [ItemCarritoInline]
+
+
+class ItemPedidoInline(admin.TabularInline):
+    model = ItemPedido
+    extra = 0
+    readonly_fields = ("producto", "nombre_producto", "version", "talla", "precio", "cantidad", "subtotal")
+
+
+@admin.register(Pedido)
+class PedidoAdmin(admin.ModelAdmin):
+    list_display = ("numero", "nombre", "email", "ciudad", "total", "estado_pedido", "creado")
+    list_filter = ("estado_pedido", "creado")
+    search_fields = ("nombre", "email", "numero")
+    readonly_fields = ("numero", "creado")
+    list_editable = ("estado_pedido",)
+    inlines = [ItemPedidoInline]

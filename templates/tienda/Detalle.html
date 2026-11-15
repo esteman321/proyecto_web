@@ -46,7 +46,12 @@
     </fieldset>
 
     <div class="detail__cta">
-      <button class="btn btn--blue" type="button" disabled title="El carrito se activa en el siguiente paso">Agregar al carrito</button>
+      <button class="btn btn--blue btn-agregar"
+              type="button"
+              data-producto-id="{{ p.pk }}"
+              data-url="{% url 'agregar_al_carrito' %}">
+        Agregar al carrito
+      </button>
       <a class="btn btn--soft" href="{% url 'catalogo' %}">Seguir viendo</a>
     </div>
 

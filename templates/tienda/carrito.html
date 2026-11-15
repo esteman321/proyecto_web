@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Carrito · Tribuna{% endblock %}
+{% block content %}
+
+<section class="wrap section--tight">
+  <div class="page-head">
+    <h1 class="page-title">Tu carrito</h1>
+  </div>
+
+  {% if items %}
+  <div class="cart-layout">
+    <div class="cart-items">
+      {% for item in items %}
+      <div class="cart-item" data-item-id="{{ item.pk }}">
+        <div class="cart-item__art">
+          {% if item.producto.imagen %}
+            <img src="{{ item.producto.imagen.url }}" alt="{{ item.producto.nombre }}" loading="lazy">
+          {% else %}
+            {% include "tienda/camiseta.html" with c1=item.producto.c1 c2=item.producto.c2 %}
+          {% endif %}
+        </div>
+        <div class="cart-item__info">
+          <a href="{% url 'detalle' item.producto.pk %}" class="cart-item__name">{{ item.producto.nombre }}</a>
+          <p class="cart-item__meta">
+            <span class="tag tag--{{ item.producto.version }}">{{ item.producto.get_version_display }}</span>
+            · Talla {{ item.talla }}
+          </p>
+          <p class="cart-item__price">${{ item.producto.precio|floatformat:"0g" }}</p>
+        </div>
+        <div class="cart-item__actions">
+          <div class="qty-control">
+            <button type="button" class="qty-btn qty-minus" data-item-id="{{ item.pk }}" data-url="{% url 'actualizar_item' item.pk %}" aria-label="Menos">−</button>
+            <span class="qty-val" id="qty-{{ item.pk }}">{{ item.cantidad }}</span>
+            <button type="button" class="qty-btn qty-plus" data-item-id="{{ item.pk }}" data-url="{% url 'actualizar_item' item.pk %}" aria-label="Más">+</button>
+          </div>
+          <p class="cart-item__subtotal" id="subtotal-{{ item.pk }}">${{ item.subtotal|floatformat:"0g" }}</p>
+          <button type="button" class="cart-item__remove" data-item-id="{{ item.pk }}" data-url="{% url 'eliminar_item' item.pk %}" aria-label="Eliminar">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+          </button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <aside class="cart-summary">
+      <h2>Resumen</h2>
+      <div class="cart-summary__row">
+        <span>Subtotal (<span id="summary-count">{{ carrito.cantidad_total }}</span> artículos)</span>
+        <span id="summary-total">${{ carrito.total|floatformat:"0g" }}</span>
+      </div>
+      <div class="cart-summary__row">
+        <span>Envío</span>
+        <span class="cart-summary__free">Gratis</span>
+      </div>
+      <div class="cart-summary__row cart-summary__total">
+        <span>Total</span>
+        <span id="summary-grand-total">${{ carrito.total|floatformat:"0g" }}</span>
+      </div>
+      <a href="{% url 'checkout' %}" class="btn btn--blue cart-summary__btn">Ir a pagar</a>
+      <a href="{% url 'catalogo' %}" class="btn btn--soft cart-summary__btn">Seguir comprando</a>
+    </aside>
+  </div>
+
+  {% else %}
+  <div class="empty">
+    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1 12H6L5 8Z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg>
+    <h2>Tu carrito está vacío</h2>
+    <p>Explora nuestro catálogo y encuentra la camiseta perfecta.</p>
+    <a href="{% url 'catalogo' %}" class="btn btn--blue">Ver catálogo</a>
+  </div>
+  {% endif %}
+</section>
+
+{% endblock %}

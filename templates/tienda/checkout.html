@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Checkout · Tribuna{% endblock %}
+{% block content %}
+
+<section class="wrap section--tight">
+  <div class="page-head">
+    <h1 class="page-title">Checkout</h1>
+    <p class="lead">Completa tus datos para finalizar la compra.</p>
+  </div>
+
+  {% if errores %}
+  <div class="checkout-errors">
+    <ul>
+      {% for error in errores %}
+      <li>{{ error }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <form method="post" action="{% url 'procesar_pago' %}" class="checkout-layout" id="checkout-form">
+    {% csrf_token %}
+
+    <div class="checkout-form">
+      <!-- Datos personales -->
+      <fieldset class="checkout-section">
+        <legend><span class="checkout-step">1</span> Datos personales</legend>
+        <div class="checkout-fields">
+          <div class="field field--grow">
+            <span>Nombre completo</span>
+            <input type="text" name="nombre" required placeholder="Juan Pérez" value="{{ form_data.nombre|default:'' }}">
+          </div>
+          <div class="field field--grow">
+            <span>Email</span>
+            <input type="email" name="email" required placeholder="tu@email.com" value="{{ form_data.email|default:'' }}">
+          </div>
+          <div class="field">
+            <span>Teléfono (opcional)</span>
+            <input type="tel" name="telefono" placeholder="300 123 4567" value="{{ form_data.telefono|default:'' }}">
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- Dirección de envío -->
+      <fieldset class="checkout-section">
+        <legend><span class="checkout-step">2</span> Dirección de envío</legend>
+        <div class="checkout-fields">
+          <div class="field field--full">
+            <span>Dirección</span>
+            <input type="text" name="direccion" required placeholder="Calle 45 #23-10, Apto 301" value="{{ form_data.direccion|default:'' }}">
+          </div>
+          <div class="field field--grow">
+            <span>Ciudad</span>
+            <input type="text" name="ciudad" required placeholder="Bucaramanga" value="{{ form_data.ciudad|default:'' }}">
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- Pago simulado -->
+      <fieldset class="checkout-section">
+        <legend><span class="checkout-step">3</span> Pago con tarjeta</legend>
+        <div class="checkout-pay-badge">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg>
+          <span>Pasarela simulada · No se realizan cobros reales</span>
+        </div>
+        <div class="checkout-fields">
+          <div class="field field--full">
+            <span>Número de tarjeta</span>
+            <input type="text" name="numero_tarjeta" required placeholder="4242 4242 4242 4242"
+                   maxlength="19" inputmode="numeric" autocomplete="cc-number"
+                   id="cc-number" value="{{ form_data.numero_tarjeta|default:'' }}">
+          </div>
+          <div class="field field--grow">
+            <span>Titular de la tarjeta</span>
+            <input type="text" name="titular" required placeholder="JUAN PÉREZ" autocomplete="cc-name" value="{{ form_data.titular|default:'' }}">
+          </div>
+          <div class="field">
+            <span>Vencimiento</span>
+            <input type="text" name="vencimiento" required placeholder="MM/AA"
+                   maxlength="5" inputmode="numeric" autocomplete="cc-exp"
+                   id="cc-exp" value="{{ form_data.vencimiento|default:'' }}">
+          </div>
+          <div class="field">
+            <span>CVV</span>
+            <input type="text" name="cvv" required placeholder="123"
+                   maxlength="4" inputmode="numeric" autocomplete="cc-csc" value="{{ form_data.cvv|default:'' }}">
+          </div>
+        </div>
+      </fieldset>
+    </div>
+
+    <!-- Resumen lateral -->
+    <aside class="cart-summary">
+      <h2>Tu pedido</h2>
+      {% for item in items %}
+      <div class="checkout-item">
+        <div class="checkout-item__info">
+          <span class="checkout-item__name">{{ item.producto.nombre }}</span>
+          <span class="checkout-item__meta">{{ item.producto.get_version_display }} · {{ item.talla }} · x{{ item.cantidad }}</span>
+        </div>
+        <span class="checkout-item__price">${{ item.subtotal|floatformat:"0g" }}</span>
+      </div>
+      {% endfor %}
+      <div class="cart-summary__row cart-summary__total">
+        <span>Total</span>
+        <span>${{ carrito.total|floatformat:"0g" }}</span>
+      </div>
+      <button type="submit" class="btn btn--blue cart-summary__btn" id="pay-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg>
+        Pagar ${{ carrito.total|floatformat:"0g" }}
+      </button>
+      <a href="{% url 'carrito' %}" class="btn btn--soft cart-summary__btn">Volver al carrito</a>
+    </aside>
+  </form>
+</section>
+
+<script>
+// Formateo automático del número de tarjeta
+document.getElementById('cc-number')?.addEventListener('input', function(e) {
+  let v = this.value.replace(/\D/g, '').slice(0, 16);
+  this.value = v.replace(/(\d{4})(?=\d)/g, '$1 ');
+});
+
+// Formateo automático de vencimiento
+document.getElementById('cc-exp')?.addEventListener('input', function(e) {
+  let v = this.value.replace(/\D/g, '').slice(0, 4);
+  if (v.length >= 2) v = v.slice(0, 2) + '/' + v.slice(2);
+  this.value = v;
+});
+
+// Animación del botón al enviar
+document.getElementById('checkout-form')?.addEventListener('submit', function() {
+  const btn = document.getElementById('pay-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Procesando pago…';
+});
+</script>
+
+{% endblock %}

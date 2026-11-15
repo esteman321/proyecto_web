@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-2-bsthtsq5e+_6h5q#08-1t)!slshizo&58^ejfxxu18bv+#%1
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -131,3 +131,7 @@ STATICFILES_DIRS = [
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# CSRF: la cookie debe ser accesible desde JS para las peticiones AJAX del carrito
+CSRF_COOKIE_HTTPONLY = False

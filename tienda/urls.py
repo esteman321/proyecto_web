@@ -1,5 +1,6 @@
 from django.urls import path, re_path
 from . import api, views
+from . import carrito_views
 
 urlpatterns = [
     # API JSON para React (mismas rutas del sitio con el prefijo /api)
@@ -11,6 +12,16 @@ urlpatterns = [
     path("api/selecciones/<slug:equipo>/", api.seccion, {"seccion": "selecciones"}),
     path("api/camisetas/", api.catalogo),
     path("api/camisetas/<int:pk>/", api.detalle),
+
+    # === Carrito y Checkout ===
+    path("carrito/", carrito_views.ver_carrito, name="carrito"),
+    path("carrito/agregar/", carrito_views.agregar_al_carrito, name="agregar_al_carrito"),
+    path("carrito/actualizar/<int:item_id>/", carrito_views.actualizar_item, name="actualizar_item"),
+    path("carrito/eliminar/<int:item_id>/", carrito_views.eliminar_item, name="eliminar_item"),
+    path("carrito/badge/", carrito_views.badge_carrito, name="badge_carrito"),
+    path("checkout/", carrito_views.checkout, name="checkout"),
+    path("checkout/pagar/", carrito_views.procesar_pago, name="procesar_pago"),
+    path("pedido/<uuid:numero>/", carrito_views.confirmacion, name="confirmacion"),
 
     # Sitio con plantillas de Django (se retira cuando React lo reemplace por completo)
     path("", views.home, name="home"),
