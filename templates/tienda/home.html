@@ -12,7 +12,7 @@
       </div>
     </div>
     <div class="hero__stage" data-tilt>
-      {% include "tienda/camiseta.html" with c1="#FCD116" c2="#003893" %}
+      {% include "tienda/_camiseta.html" with c1="#FCD116" c2="#003893" %}
     </div>
   </div>
 </section>
@@ -23,17 +23,17 @@
     <a href="{% url 'selecciones' %}" class="tile tile--wide">
       <h3>Selecciones</h3>
       <p>Eliminatorias, Copa América y Mundial.</p>
-      <div class="tile__art">{% include "tienda/camiseta.html" with c1="#FCD116" c2="#CE1126" %}</div>
+      <div class="tile__art">{% include "tienda/_camiseta.html" with c1="#FCD116" c2="#CE1126" %}</div>
     </a>
     <a href="{% url 'ligas' seccion='clubes' %}" class="tile">
       <h3>Clubes</h3>
       <p>Local, visitante y tercera.</p>
-      <div class="tile__art">{% include "tienda/camiseta.html" with c1="#0B6E3A" c2="#FFFFFF" %}</div>
+      <div class="tile__art">{% include "tienda/_camiseta.html" with c1="#0B6E3A" c2="#FFFFFF" %}</div>
     </a>
     <a href="{% url 'ligas' seccion='retro' %}" class="tile">
       <h3>Retro</h3>
       <p>Diseños que hicieron historia.</p>
-      <div class="tile__art">{% include "tienda/camiseta.html" with c1="#1B2A4A" c2="#E8C547" %}</div>
+      <div class="tile__art">{% include "tienda/_camiseta.html" with c1="#1B2A4A" c2="#E8C547" %}</div>
     </a>
   </div>
 </section>
@@ -45,7 +45,7 @@
   </div>
   <ul class="rail" tabindex="0" aria-label="Camisetas recién llegadas">
     {% for p in productos %}
-      {% include "tienda/card.html" %}
+      {% include "tienda/_card.html" %}
     {% empty %}
     <li class="card"><p class="card__meta">Aún no hay camisetas. Ejecuta <code>python manage.py cargar_catalogo</code>.</p></li>
     {% endfor %}

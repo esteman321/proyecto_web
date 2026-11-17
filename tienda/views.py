@@ -10,6 +10,7 @@ from django.shortcuts import get_object_or_404, render
 from django.templatetags.static import static
 from django.urls import reverse
 from django.utils.text import slugify
+from django.views.decorators.csrf import ensure_csrf_cookie
 
 from .models import Equipo, Producto
 
@@ -300,5 +301,6 @@ def contexto_detalle(pk):
         "relacionados": _relacionados(producto)}
 
 
+@ensure_csrf_cookie
 def detalle(request, pk):
     return render(request, "tienda/detalle.html", contexto_detalle(pk))

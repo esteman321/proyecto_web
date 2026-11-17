@@ -1,5 +1,6 @@
 import uuid
 
+from django.contrib.auth.models import User
 from django.db import models
 from django.utils.text import slugify
 
@@ -86,17 +87,22 @@ class Producto(models.Model):
 
 
 # ======================================================================
-# Carrito de compras (basado en sesión)
+# Carrito de compras (vinculado a usuario o sesión)
 # ======================================================================
 
 class Carrito(models.Model):
-    """Carrito vinculado a una sesión del navegador."""
-    session_key = models.CharField(max_length=40, unique=True, db_index=True)
+    """Carrito vinculado a un usuario (si está autenticado) o a una sesión del navegador."""
+    usuario = models.ForeignKey(
+        User, on_delete=models.CASCADE, null=True, blank=True, related_name="carritos"
+    )
+    session_key = models.CharField(max_length=40, blank=True, null=True, db_index=True)
     creado = models.DateTimeField(auto_now_add=True)
     actualizado = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Carrito {self.pk} ({self.session_key[:8]}…)"
+        if self.usuario:
+            return f"Carrito {self.pk} (Usuario: {self.usuario.username})"
+        return f"Carrito {self.pk} ({self.session_key[:8] if self.session_key else 'sin sesión'}…)"
 
     @property
     def total(self):
@@ -140,6 +146,9 @@ ESTADOS_PEDIDO = [
 
 
 class Pedido(models.Model):
+    usuario = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="pedidos"
+    )
     numero = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     nombre = models.CharField(max_length=120)
     email = models.EmailField()

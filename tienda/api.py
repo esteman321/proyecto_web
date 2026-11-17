@@ -7,6 +7,7 @@ Así React usa la misma ruta para pedir datos y para mostrar la página.
 Los datos salen de las mismas funciones contexto_*() que usan las plantillas (views.py).
 """
 from django.http import Http404, JsonResponse
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET
 
 from . import views
@@ -47,11 +48,13 @@ def _no_encontrado():
 
 
 @require_GET
+@ensure_csrf_cookie
 def home(request):
     return JsonResponse({"novedades": [producto_json(p) for p in views.contexto_home()["productos"]]})
 
 
 @require_GET
+@ensure_csrf_cookie
 def seccion(request, seccion, liga=None, equipo=None):
     try:
         ctx = views.contexto_seccion(request, seccion, liga, equipo)
@@ -67,6 +70,7 @@ def seccion(request, seccion, liga=None, equipo=None):
 
 
 @require_GET
+@ensure_csrf_cookie
 def catalogo(request):
     ctx = views.contexto_catalogo(request)
     return JsonResponse({
@@ -84,6 +88,7 @@ def catalogo(request):
 
 
 @require_GET
+@ensure_csrf_cookie
 def detalle(request, pk):
     try:
         ctx = views.contexto_detalle(pk)

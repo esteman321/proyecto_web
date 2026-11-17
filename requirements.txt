@@ -1,0 +1,18 @@
+# Framework web principal
+Django>=5.1.0,<6.2.0
+
+# Manejo de imágenes (fotos de camisetas en media/)
+Pillow>=10.0.0
+
+# Django REST Framework y autenticación JWT
+djangorestframework>=3.14.0
+djangorestframework-simplejwt>=5.3.0
+PyJWT>=2.8.0
+
+# Manejo de CORS para comunicación entre React (Vite) y Django
+django-cors-headers>=4.3.0
+
+# Dependencias auxiliares de Django
+asgiref>=3.8.0
+sqlparse>=0.5.0
+tzdata>=2024.1

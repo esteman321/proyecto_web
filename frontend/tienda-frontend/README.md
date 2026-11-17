@@ -1,16 +1,40 @@
-# React + Vite
+# Frontend de React (SPA)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+La SPA consume la API JSON de Django (`tienda/api.py`), que usa las mismas
+rutas del sitio con el prefijo `/api`:
 
-Currently, two official plugins are available:
+| Página | Ruta React | API |
+|---|---|---|
+| Home | `/` | `/api/home/` |
+| Selecciones | `/selecciones(/:equipo)` | `/api/selecciones/...` |
+| Clubes | `/clubes(/:liga)(/:equipo)` | `/api/clubes/...` |
+| Retro | `/retro(/:liga)(/:equipo)` | `/api/retro/...` |
+| Todo | `/camisetas` | `/api/camisetas/` |
+| Detalle | `/camisetas/:id` | `/api/camisetas/:id/` |
+| Cualquier otra | `*` → NotFound | — |
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+El carrito y el checkout siguen siendo páginas de Django (`/carrito/`,
+`/checkout/`) con `static/js/carrito.js`; React solo agrega productos y
+mantiene el badge del header.
 
-## React Compiler
+## Desarrollo
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm install
+npm run dev        # http://localhost:5173 (Django debe correr en 8000)
+```
 
-## Expanding the ESLint configuration
+El servidor de Vite hace proxy de `/api`, `/carrito`, `/checkout`,
+`/static`, `/media` y `/admin` hacia Django, así que la SPA se comporta
+igual que en producción. Usa `/static/css/home.css` (la misma hoja que
+las plantillas) + `src/extra.css` para los detalles propios de React.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Producción
+
+```bash
+npm run build      # compila a ../static/spa/ con base /static/spa/
+```
+
+Luego, en `config/settings.py`, pon `SPA_ACTIVA = True`: Django servirá
+`static/spa/index.html` para cualquier ruta que no sea API/carrito, y las
+plantillas del MPA quedan retiradas.

@@ -17,7 +17,7 @@
           {% if item.producto.imagen %}
             <img src="{{ item.producto.imagen.url }}" alt="{{ item.producto.nombre }}" loading="lazy">
           {% else %}
-            {% include "tienda/camiseta.html" with c1=item.producto.c1 c2=item.producto.c2 %}
+            {% include "tienda/_camiseta.html" with c1=item.producto.c1 c2=item.producto.c2 %}
           {% endif %}
         </div>
         <div class="cart-item__info">

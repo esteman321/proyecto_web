@@ -1,8 +1,16 @@
 from django.urls import path, re_path
-from . import api, views
+from rest_framework_simplejwt.views import TokenRefreshView
+from . import api, auth_api, views
 from . import carrito_views
 
 urlpatterns = [
+    # Autenticación JWT para React
+    path("api/auth/registro/", auth_api.registro, name="api_registro"),
+    path("api/auth/login/", auth_api.login, name="api_login"),
+    path("api/auth/logout/", auth_api.logout, name="api_logout"),
+    path("api/auth/perfil/", auth_api.perfil, name="api_perfil"),
+    path("api/auth/token/refresh/", TokenRefreshView.as_view(), name="api_token_refresh"),
+
     # API JSON para React (mismas rutas del sitio con el prefijo /api)
     path("api/home/", api.home),
     re_path(r"^api/(?P<seccion>clubes|retro)/$", api.seccion),

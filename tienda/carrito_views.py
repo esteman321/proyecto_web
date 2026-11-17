@@ -12,12 +12,86 @@ from .models import Carrito, ItemCarrito, ItemPedido, Pedido, Producto
 
 
 # ------------------------------------------------------------------ helpers
-def _get_carrito(request):
-    """Obtiene o crea el carrito asociado a la sesión actual."""
+def _get_usuario(request):
+    """Devuelve el usuario actual ya sea autenticado por sesión de Django o por JWT."""
+    if getattr(request, "user", None) and request.user.is_authenticated:
+        return request.user
+
+    auth_header = request.headers.get("Authorization") or request.META.get("HTTP_AUTHORIZATION")
+    if auth_header and auth_header.startswith("Bearer "):
+        try:
+            from rest_framework_simplejwt.authentication import JWTAuthentication
+            auth = JWTAuthentication()
+            token_str = auth_header.split(" ")[1]
+            validated_token = auth.get_validated_token(token_str)
+            user = auth.get_user(validated_token)
+            if user and user.is_active:
+                return user
+        except Exception:
+            pass
+    return None
+
+
+def _get_carrito(request, session_key_previa=None):
+    """
+    Obtiene o crea el carrito.
+    Si el usuario está autenticado (por sesión o JWT):
+      - Se recupera su carrito persistente vinculado a 'usuario'.
+      - Si en la sesión actual había un carrito anónimo previo, se fusionan sus productos.
+    Si el usuario es anónimo:
+      - Se utiliza el carrito asociado a la session_key de la cookie.
+    """
     if not request.session.session_key:
         request.session.create()
-    key = request.session.session_key
-    carrito, _ = Carrito.objects.get_or_create(session_key=key)
+    session_key = request.session.session_key
+    buscar_anonimo_key = session_key_previa or session_key
+
+    user = _get_usuario(request)
+
+    if user:
+        # Carrito persistente del usuario
+        carrito_user = Carrito.objects.filter(usuario=user).first()
+
+        # Carrito anónimo de la sesión actual o previa
+        carrito_anonimo = None
+        if buscar_anonimo_key:
+            carrito_anonimo = Carrito.objects.filter(session_key=buscar_anonimo_key, usuario__isnull=True).first()
+
+        if carrito_anonimo and carrito_anonimo != carrito_user:
+            if not carrito_user:
+                carrito_anonimo.usuario = user
+                carrito_anonimo.session_key = session_key
+                carrito_anonimo.save()
+                return carrito_anonimo
+            else:
+                # Fusionar items del carrito anónimo al carrito del usuario
+                for item_anon in carrito_anonimo.items.all():
+                    item_u, created = ItemCarrito.objects.get_or_create(
+                        carrito=carrito_user,
+                        producto=item_anon.producto,
+                        talla=item_anon.talla,
+                        defaults={"cantidad": item_anon.cantidad},
+                    )
+                    if not created:
+                        item_u.cantidad += item_anon.cantidad
+                        item_u.save()
+                carrito_anonimo.delete()
+
+        if not carrito_user:
+            carrito_user = Carrito.objects.create(usuario=user, session_key=session_key)
+        else:
+            if carrito_user.session_key != session_key:
+                carrito_user.session_key = session_key
+                carrito_user.save(update_fields=["session_key"])
+
+        return carrito_user
+
+    # Usuario anónimo
+    carrito, _ = Carrito.objects.get_or_create(
+        session_key=session_key,
+        usuario__isnull=True,
+        defaults={"session_key": session_key},
+    )
     return carrito
 
 
@@ -126,9 +200,20 @@ def checkout(request):
     items = carrito.items.select_related("producto", "producto__equipo").all()
     if not items.exists():
         return redirect("carrito")
+
+    user = _get_usuario(request)
+    form_data = {}
+    if user:
+        nombre_completo = f"{user.first_name} {user.last_name}".strip() or user.username
+        form_data = {
+            "nombre": nombre_completo,
+            "email": user.email,
+        }
+
     return render(request, "tienda/checkout.html", {
         "carrito": carrito,
         "items": items,
+        "form_data": form_data,
     })
 
 
@@ -180,8 +265,6 @@ def procesar_pago(request):
         })
 
     # === PASARELA SIMULADA ===
-    # En producción aquí se integraría con Stripe, PayU, MercadoPago, etc.
-    # Simulamos que el pago siempre es exitoso.
     pago_exitoso = True
 
     if not pago_exitoso:
@@ -192,8 +275,10 @@ def procesar_pago(request):
             "form_data": request.POST,
         })
 
-    # Crear el pedido
+    # Crear el pedido vinculado al usuario si está autenticado
+    user = _get_usuario(request)
     pedido = Pedido.objects.create(
+        usuario=user,
         nombre=nombre,
         email=email,
         telefono=telefono,

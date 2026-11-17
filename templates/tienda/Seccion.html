@@ -18,7 +18,7 @@
 <section class="wrap picker-panel">
   {% if ligas %}
   <ul class="picker picker--ligas" aria-label="Ligas">
-    {% for item in ligas %}{% include "tienda/escudo.html" with size="lg" dim=liga_sel %}{% endfor %}
+    {% for item in ligas %}{% include "tienda/_escudo.html" with size="lg" dim=liga_sel %}{% endfor %}
   </ul>
   {% endif %}
 
@@ -26,7 +26,7 @@
 
   {% if equipos %}
   <ul class="picker picker--equipos" aria-label="Equipos">
-    {% for item in equipos %}{% include "tienda/escudo.html" with size="sm" dim=equipo_sel %}{% endfor %}
+    {% for item in equipos %}{% include "tienda/_escudo.html" with size="sm" dim=equipo_sel %}{% endfor %}
   </ul>
   {% endif %}
 
@@ -55,7 +55,7 @@
 <section class="wrap section section--tight">
   {% if pagina.object_list %}
   <ul class="grid">
-    {% for p in pagina %}{% include "tienda/card.html" %}{% endfor %}
+    {% for p in pagina %}{% include "tienda/_card.html" %}{% endfor %}
   </ul>
   {% if pagina.paginator.num_pages > 1 %}
   <nav class="pager" aria-label="Paginación">
