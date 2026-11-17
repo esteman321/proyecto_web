@@ -66,15 +66,6 @@ DATABASES = {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
     }
-    # Para PostgreSQL (como en la otra plataforma):
-    # "default": {
-    #     "ENGINE": "django.db.backends.postgresql",
-    #     "NAME": "tribuna",
-    #     "USER": "postgres",
-    #     "PASSWORD": "admin",
-    #     "HOST": "localhost",
-    #     "PORT": "5432",
-    # }
 }
 
 # Archivos de medios (fotos de camisetas subidas por importar_imagenes)
