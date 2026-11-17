@@ -1,4 +1,4 @@
-# ⚽ Tribuna
+# Tribuna
 
 > La camiseta de tu equipo, a tu talla.
 
@@ -77,7 +77,7 @@ templates y React muestran exactamente lo mismo.
 1. `npm run build` → compila a `static/spa/` con base `/static/spa/`.
 2. En `config/settings.py`, `SPA_ACTIVA = True` → Django sirve
    `static/spa/index.html` en cualquier ruta que no sea API/carrito/media.
-3. Los templates del MPA quedan retirados (por eso "se retira al final" 🙂).
+3. Los templates del MPA quedan retirados (por eso "se retira al final" ).
 
 ## Puesta en marcha
 
