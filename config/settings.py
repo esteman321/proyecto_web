@@ -8,7 +8,7 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# ⚠️ Cambiar en producción
+#  Cambiar en producción
 SECRET_KEY = "django-insecure-tribuna-dev-key-cambiar-en-produccion"
 
 DEBUG = True
